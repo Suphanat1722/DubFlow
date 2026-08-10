@@ -19,3 +19,9 @@ python-worker/.pytest_cache/
 runtime/
 models/
 takes/
+python-worker/benchmarks/results/
+python-worker/benchmarks/*.wav
+python-worker/benchmarks/ref_bench.wav
+python-worker/benchmarks/ffmpeg_time_stretch.json
+python-worker/benchmarks/__pycache__/
+!python-worker/benchmarks/checksum_manifest.json

@@ -52,6 +52,6 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: python-worker/requirements-dev.txt
-      - run: python -m pip install -r requirements-dev.txt
+          cache-dependency-path: python-worker/requirements-ci.txt
+      - run: python -m pip install -r requirements-ci.txt
       - run: python -m pytest
