@@ -11,6 +11,7 @@ use domain::srt::parse_srt;
 use domain::take::Cue;
 use domain::timeline;
 use domain::worker::WorkerClient;
+use domain::bootstrap::{self, BootstrapCheckResult, BootstrapState, DownloadProgress, GpuInfo};
 
 /// App state shared between Tauri commands.
 pub struct AppState {
@@ -20,6 +21,8 @@ pub struct AppState {
     pub worker: Mutex<Option<WorkerClient>>,
     /// Sequential generation job queue.
     pub jobs: Mutex<JobQueue>,
+    /// Bootstrap download progress (shared for UI polling).
+    pub download_progress: Mutex<DownloadProgress>,
 }
 
 impl AppState {
@@ -28,6 +31,12 @@ impl AppState {
             project: Mutex::new(None),
             worker: Mutex::new(None),
             jobs: Mutex::new(JobQueue::new()),
+            download_progress: Mutex::new(DownloadProgress {
+                total_bytes: 0,
+                downloaded_bytes: 0,
+                current_file: String::new(),
+                status: String::new(),
+            }),
         }
     }
 }
@@ -60,6 +69,104 @@ fn export_mode_from_str(mode: &str) -> Result<ExportMode, String> {
         "voiceTrack" | "voice-track" => Ok(ExportMode::VoiceTrack),
         _ => Err(format!("unknown export mode: {mode}")),
     }
+}
+
+/// Run a bootstrap health check (GPU detection, license state, disk space).
+#[tauri::command]
+fn bootstrap_check() -> BootstrapCheckResult {
+    bootstrap::run_bootstrap_check()
+}
+
+/// Accept a model license and persist the decision.
+#[tauri::command]
+fn bootstrap_accept_license(model_id: String) -> Result<BootstrapState, String> {
+    let state_path = bootstrap::default_state_path();
+    bootstrap::accept_license(&state_path, &model_id).map_err(|e| e.to_string())
+}
+
+/// Poll the current download progress.
+#[tauri::command]
+fn bootstrap_download_progress(
+    state: tauri::State<'_, AppState>,
+) -> DownloadProgress {
+    state.download_progress.lock().unwrap().clone()
+}
+
+/// Ensure bootstrap directories exist.
+#[tauri::command]
+fn bootstrap_ensure_dirs() -> Result<String, String> {
+    let dir = bootstrap::ensure_dirs().map_err(|e| e.to_string())?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+/// Detect GPU info.
+#[tauri::command]
+fn bootstrap_detect_gpu() -> GpuInfo {
+    bootstrap::detect_gpu()
+}
+
+/// Verify a file's SHA-256 checksum.
+#[tauri::command]
+fn bootstrap_verify_checksum(path: String, expected_sha256: String) -> Result<bool, String> {
+    bootstrap::verify_checksum(std::path::Path::new(&path), &expected_sha256)
+        .map(|_| true)
+        .map_err(|e| e.to_string())
+}
+
+/// Get the current bootstrap state.
+#[tauri::command]
+fn bootstrap_state() -> BootstrapState {
+    let state_path = bootstrap::default_state_path();
+    bootstrap::load_state(&state_path)
+}
+
+/// Run the full bootstrap install pipeline (runtime + models) synchronously.
+/// The UI polls `bootstrap_download_progress` while this runs.
+#[tauri::command]
+fn bootstrap_run_install(
+    state: tauri::State<'_, AppState>,
+) -> Result<BootstrapState, String> {
+    let state_path = bootstrap::default_state_path();
+    let manifest_path = bootstrap::manifest_path();
+    let manifest = bootstrap::read_manifest(&manifest_path).map_err(|e| e.to_string())?;
+    let progress = &state.download_progress;
+    bootstrap::run_install(&state_path, &manifest, progress).map_err(|e| e.to_string())
+}
+
+/// Find the bundled or system ffmpeg, returning its path.
+#[tauri::command]
+fn bootstrap_find_ffmpeg() -> Result<String, String> {
+    let bundled = bootstrap::data_dir().join("ffmpeg").join("ffmpeg.exe");
+    if bundled.is_file() {
+        return Ok(bundled.to_string_lossy().to_string());
+    }
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join("ffmpeg.exe");
+            if candidate.is_file() {
+                return Ok(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+    Err("ffmpeg not found on PATH or bundled".to_string())
+}
+
+/// Find the bundled or system ffprobe, returning its path.
+#[tauri::command]
+fn bootstrap_find_ffprobe() -> Result<String, String> {
+    let bundled = bootstrap::data_dir().join("ffmpeg").join("ffprobe.exe");
+    if bundled.is_file() {
+        return Ok(bundled.to_string_lossy().to_string());
+    }
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join("ffprobe.exe");
+            if candidate.is_file() {
+                return Ok(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+    Err("ffprobe not found on PATH or bundled".to_string())
 }
 
 /// Simple ping command so the UI can verify the Rust shell is alive.
@@ -800,6 +907,16 @@ pub fn run() {
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             ping,
+            bootstrap_check,
+            bootstrap_accept_license,
+            bootstrap_download_progress,
+            bootstrap_ensure_dirs,
+            bootstrap_detect_gpu,
+            bootstrap_verify_checksum,
+            bootstrap_state,
+            bootstrap_run_install,
+            bootstrap_find_ffmpeg,
+            bootstrap_find_ffprobe,
             worker_spawn,
             worker_configure,
             worker_close,

@@ -155,6 +155,30 @@ const th = {
   exportBlockedReason: "สาเหตุ",
   exportNoGpu: "Export ใช้ได้แม้ไม่มี GPU",
   exportOutput: "ไฟล์ที่ส่งออก",
+
+  // Bootstrap
+  bootstrapTitle: "ตั้งค่า DubFlow",
+  bootstrapSubtitle: "ตรวจสอบระบบและดาวน์โหลดส่วนประกอบที่จําเป็น",
+  bootstrapHardware: "ฮาร์ดแวร์",
+  bootstrapLicense: "ข้อตกลงสิทธิ์ใช้งาน",
+  bootstrapDownload: "ดาวน์โหลด",
+  bootstrapGpuDetected: "ตรวจพบ GPU",
+  bootstrapCudaVersion: "CUDA",
+  bootstrapVram: "VRAM",
+  bootstrapGpuSupported: "GPU รองรับการทํางาน",
+  bootstrapGpuUnsupported: "GPU ไม่รองรับการทํางาน (ใช้ CPU เท่านั้น)",
+  bootstrapNoGpu: "ไม่พบ GPU ที่รองรับ ฟัง/Export ยังใช้งานได้",
+  bootstrapNeedRuntime: "ต้องดาวน์โหลด Python runtime",
+  bootstrapNeedModels: "ต้องดาวน์โหลดโมเดลเสียง",
+  bootstrapNoSpace: "พื้นที่ดิสก์ไม่พอ (ต้องการอย่างน้อย 2 GB)",
+  bootstrapStartDownload: "เริ่มดาวน์โหลด",
+  bootstrapAcceptLicense: "ยอมรับข้อตกลง",
+  bootstrapDownloadHint: "กําลังดาวน์โหลดส่วนประกอบ กรุณารอสักครู่...",
+  bootstrapCompleting: "กําลังติดตั้งส่วนประกอบ...",
+  bootstrapComplete: "ตั้งค่าเสร็จสมบูรณ์",
+  bootstrapContinue: "เริ่มใช้งาน DubFlow",
+  bootstrapAllSet: "ทุกอย่างพร้อมใช้งานแล้ว",
+  bootstrapRetry: "ลองอีกครั้ง",
 };
 
 export type Locale = typeof th;

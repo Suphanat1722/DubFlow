@@ -1,0 +1,60 @@
+{
+  "legacyRuntime": {
+    "python": "3.11.15",
+    "pythonEmbed": "3.11.9",
+    "torch": "2.11.0+cu126",
+    "torchaudio": "2.11.0+cu126",
+    "f5Tts": "1.1.22",
+    "cudaWheelIndex": "https://download.pytorch.org/whl/cu126",
+    "pythonPackage": {
+      "url": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
+      "sha256": "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b",
+      "dest": "runtime/python-3.11.9-embed-amd64.zip",
+      "sizeHint": 11249023
+    },
+    "ffmpeg": {
+      "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0-essentials_build.zip",
+      "sha256": "e6b54767a6065919048f1a098eb27211ca4e12b4348a05d88777a5855d0b6e71",
+      "dest": "ffmpeg/ffmpeg-9.0-essentials_build.zip",
+      "sizeHint": 111167378
+    }
+  },
+  "models": {
+    "JaiTTS-F5TTS": {
+      "repo": "JTS-AI/JaiTTS-F5TTS",
+      "revision": "50a5aa8986df1e3882873834f689a05bcae06bcb",
+      "files": [
+        {
+          "url": "https://huggingface.co/JTS-AI/JaiTTS-F5TTS/resolve/50a5aa8986df1e3882873834f689a05bcae06bcb/model.pt",
+          "sha256": "74a7b9fdeb9632f0b8784de6aa6db9422d408f2a948cd477dd4bd06ca7f206b9",
+          "dest": "models/JaiTTS-F5TTS/model.pt",
+          "sizeHint": 1348635271
+        },
+        {
+          "url": "https://huggingface.co/JTS-AI/JaiTTS-F5TTS/resolve/50a5aa8986df1e3882873834f689a05bcae06bcb/vocab.txt",
+          "sha256": "5e953a2ff710cfeb473506743cec997fd2cde832ef9ad941301f932932e3e15f",
+          "dest": "models/JaiTTS-F5TTS/vocab.txt",
+          "sizeHint": 11415
+        }
+      ]
+    },
+    "vocos-mel-24khz": {
+      "repo": "charactr/vocos-mel-24khz",
+      "revision": "0feb3fdd929bcd6649e0e7c5a688cf7dd012ef21",
+      "files": [
+        {
+          "url": "https://huggingface.co/charactr/vocos-mel-24khz/resolve/0feb3fdd929bcd6649e0e7c5a688cf7dd012ef21/pytorch_model.bin",
+          "sha256": "97ec976ad1fd67a33ab2682d29c0ac7df85234fae875aefcc5fb215681a91b2a",
+          "dest": "models/vocos-mel-24khz/pytorch_model.bin",
+          "sizeHint": 54365991
+        },
+        {
+          "url": "https://huggingface.co/charactr/vocos-mel-24khz/resolve/0feb3fdd929bcd6649e0e7c5a688cf7dd012ef21/config.yaml",
+          "sha256": "da9033922f969a47f0c160010226919e59f27761fd5066f3828d46de6650b0fc",
+          "dest": "models/vocos-mel-24khz/config.yaml",
+          "sizeHint": 461
+        }
+      ]
+    }
+  }
+}
