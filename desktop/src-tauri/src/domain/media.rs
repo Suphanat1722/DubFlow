@@ -6,6 +6,7 @@
 
 use std::path::Path;
 use std::process::Command;
+use serde::Serialize;
 
 /// Media operation errors.
 #[derive(Debug, Clone, PartialEq)]
@@ -314,6 +315,74 @@ pub fn has_audio_stream(path: &Path) -> Result<bool, MediaError> {
         }
     })?;
     Ok(streams.iter().any(|s| s["codec_type"] == "audio"))
+}
+
+/// A single amplitude bucket for waveform rendering.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PeakSegment {
+    pub min: f64,
+    pub max: f64,
+}
+
+/// Decode an audio file to mono s16le and produce `buckets` min/max peaks.
+///
+/// FFmpeg downsamples to 8 kHz before we read raw PCM, so memory stays small
+/// regardless of the source length (we never load the full decoded audio).
+pub fn compute_peaks(path: &Path, buckets: usize) -> Result<Vec<PeakSegment>, MediaError> {
+    let output = Command::new("ffmpeg")
+        .args(["-v", "quiet", "-i"])
+        .arg(path)
+        .args([
+            "-f", "s16le", "-ac", "1", "-ar", "8000", "-",
+        ])
+        .output()
+        .map_err(|e| MediaError::ProbeFailed {
+            path: path.to_string_lossy().to_string(),
+            message: format!("cannot run ffmpeg for peaks: {e}"),
+        })?;
+    if !output.status.success() {
+        return Err(MediaError::ProbeFailed {
+            path: path.to_string_lossy().to_string(),
+            message: String::from_utf8_lossy(&output.stderr).to_string(),
+        });
+    }
+    let data = output.stdout;
+    let samples: Vec<i16> = data
+        .chunks_exact(2)
+        .map(|c| i16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    if samples.is_empty() {
+        return Err(MediaError::ProbeFailed {
+            path: path.to_string_lossy().to_string(),
+            message: "decoded audio is empty".to_string(),
+        });
+    }
+
+    let mut peaks = Vec::with_capacity(buckets);
+    let chunk = (samples.len() / buckets).max(1);
+    for i in 0..buckets {
+        let start = i * chunk;
+        let end = ((i + 1) * chunk).min(samples.len());
+        if start >= samples.len() {
+            peaks.push(PeakSegment { min: 0.0, max: 0.0 });
+            continue;
+        }
+        let mut min: i16 = i16::MAX;
+        let mut max: i16 = i16::MIN;
+        for s in &samples[start..end] {
+            if *s < min {
+                min = *s;
+            }
+            if *s > max {
+                max = *s;
+            }
+        }
+        peaks.push(PeakSegment {
+            min: min as f64 / i16::MAX as f64,
+            max: max as f64 / i16::MAX as f64,
+        });
+    }
+    Ok(peaks)
 }
 
 #[cfg(test)]

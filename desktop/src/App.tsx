@@ -1,30 +1,44 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useState } from "react";
 import "./App.css";
+import { t } from "./lib/i18n";
+import { isTauri } from "./lib/assetUrl";
+import { ProjectSetup } from "./components/ProjectSetup";
+import { Editor } from "./components/Editor";
+import type { Project } from "./lib/types";
 
 function App() {
-  const [shellStatus, setShellStatus] = useState<string>("checking...");
+  const [project, setProject] = useState<Project | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    invoke<string>("ping")
-      .then((result) => {
-        if (!cancelled) setShellStatus(`rust shell: ${result}`);
-      })
-      .catch((error) => {
-        if (!cancelled) setShellStatus(`rust shell: error (${error})`);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  if (!isTauri()) {
+    return (
+      <main className="container">
+        <h1>{t("appTitle")}</h1>
+        <p className="subtitle">{t("appSubtitle")}</p>
+        <p className="not-tauri">This app requires the Tauri desktop shell.</p>
+      </main>
+    );
+  }
+
+  if (!project) {
+    return (
+      <main className="container">
+        <h1>{t("appTitle")}</h1>
+        <p className="subtitle">{t("appSubtitle")}</p>
+        {error && (
+          <div className="banner error" onClick={() => setError(null)}>
+            {t("errorBanner")}: {error}
+          </div>
+        )}
+        <ProjectSetup onProject={setProject} onError={setError} />
+      </main>
+    );
+  }
 
   return (
-    <main className="container">
-      <h1>DubFlow</h1>
-      <p className="subtitle">เครื่องมือสร้างเสียงพากย์ไทยจาก SRT</p>
-      <p data-testid="shell-status">{shellStatus}</p>
-    </main>
+    <div className="app">
+      <Editor project={project} onClose={() => setProject(null)} />
+    </div>
   );
 }
 

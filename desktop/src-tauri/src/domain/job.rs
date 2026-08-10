@@ -135,6 +135,36 @@ impl JobQueue {
         self.current.is_some() || !self.pending.is_empty()
     }
 
+    /// Returns `true` when there is a next job to run (not cancelled, queue
+    /// non-empty).
+    pub fn has_next(&self) -> bool {
+        !self.cancelled && !self.pending.is_empty()
+    }
+
+    /// Pop the next job and mark it as the current one without emitting
+    /// events. The caller is responsible for emitting lifecycle events (the
+    /// UI-facing run loop pushes them to its own event log).
+    pub fn pop_job(&mut self) -> Option<Job> {
+        if self.cancelled || self.pending.is_empty() {
+            return None;
+        }
+        let job = self.pending.remove(0);
+        self.current = Some(job.clone());
+        Some(job)
+    }
+
+    /// Clear the current-job marker after a job finished.
+    pub fn finish_job(&mut self) {
+        self.current = None;
+    }
+
+    /// Push an event into the queue's event channel so the UI can pick it up
+    /// via `drain_events`. Used by external run loops that don't hold the
+    /// queue lock throughout the entire execution.
+    pub fn push_event(&mut self, event: JobEvent) {
+        let _ = self.events.send(event);
+    }
+
     /// Update all cue statuses by running the solver.
     pub fn update_solver(project: &mut Project) {
         let inputs: Vec<_> = project
@@ -170,139 +200,19 @@ impl JobQueue {
         reference_transcript: &str,
         settings: &serde_json::Value,
     ) -> Option<JobEvent> {
-        if self.cancelled || self.pending.is_empty() {
-            return None;
-        }
-        let job = self.pending.remove(0);
-        self.current = Some(job.clone());
+        let job = self.pop_job()?;
         let _ = self.events.send(JobEvent::Started {
             cue_id: job.cue_id.clone(),
         });
-
-        // Find the cue.
-        let Some(cue_idx) = project.cues.iter().position(|c| c.id == job.cue_id) else {
-            self.current = None;
-            let ev = JobEvent::Failed {
-                cue_id: job.cue_id.clone(),
-                error: WorkerError {
-                    code: -1,
-                    message: "cue not found".to_string(),
-                    kind: "cue-not-found".to_string(),
-                },
-            };
-            let _ = self.events.send(ev.clone());
-            return Some(ev);
-        };
-
-        let cue = &project.cues[cue_idx];
-        let text = cue.text.clone();
-        let seed = match job.action {
-            JobAction::Generate => {
-                // Use a random seed.
-                use rand::Rng;
-                rand::thread_rng().gen_range(1..1_000_000_000)
-            }
-            JobAction::Regenerate { seed } => seed,
-        };
-
-        // Preprocess reference if needed (the worker caches internally).
-        let preprocess_result = worker.call(
-            "tts.preprocess_reference",
-            serde_json::json!({
-                "audioPath": reference_audio_path,
-                "transcript": reference_transcript,
-            }),
+        let ev = execute_job(
+            &job,
+            worker,
+            project,
+            reference_audio_path,
+            reference_transcript,
+            settings,
         );
-        let reference = match preprocess_result {
-            Ok(v) => v,
-            Err(e) => {
-                self.current = None;
-                let ev = JobEvent::Failed {
-                    cue_id: job.cue_id.clone(),
-                    error: e,
-                };
-                let _ = self.events.send(ev.clone());
-                return Some(ev);
-            }
-        };
-
-        // Synthesize.
-        let synthesize_result = worker.call(
-            "tts.synthesize",
-            serde_json::json!({
-                "reference": {
-                    "audioPath": reference["audioPath"],
-                    "transcript": reference["transcript"],
-                    "durationMs": reference["durationMs"],
-                    "sampleRate": reference["sampleRate"],
-                    "sha256": reference["sha256"],
-                },
-                "text": text,
-                "seed": seed,
-                "settings": settings,
-            }),
-        );
-        let result = match synthesize_result {
-            Ok(v) => v,
-            Err(e) => {
-                self.current = None;
-                let ev = JobEvent::Failed {
-                    cue_id: job.cue_id.clone(),
-                    error: e,
-                };
-                let _ = self.events.send(ev.clone());
-                return Some(ev);
-            }
-        };
-
-        let audio_path = result["audioPath"].as_str().unwrap_or("").to_string();
-        let duration_ms = result["durationMs"].as_u64().unwrap_or(0);
-        let settings_hash = result["settingsHash"].as_str().unwrap_or("").to_string();
-
-        // Unique take id per cue: seed + per-cue counter. The worker writes
-        // `take-{seed}.wav`; we rename it into the project `takes/` folder so
-        // two takes with the same seed never overwrite each other and the
-        // stored path is project-relative (survives project relocation).
-        let counter = project.cues[cue_idx].takes.len() + 1;
-        let take_id = format!("take-{seed}-{counter:02}");
-        let project_dir = project.project_dir.clone();
-        let final_audio = project_dir
-            .join("takes")
-            .join(format!("{take_id}.wav"));
-        if let Some(parent) = final_audio.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let worker_out = Path::new(&audio_path);
-        if worker_out != final_audio {
-            let _ = std::fs::rename(worker_out, &final_audio);
-        }
-        let relative_audio = format!("takes/{}", final_audio.file_name().unwrap().to_string_lossy());
-
-        // Create the Take and add it to the cue.
-        let take = Take {
-            take_id: take_id.clone(),
-            cue_id: job.cue_id.clone(),
-            provider: "jaitts-f5tts".to_string(),
-            provider_version: "1.1.22".to_string(),
-            seed,
-            duration_ms,
-            settings_hash,
-            audio_path: relative_audio,
-        };
-        let cue = &mut project.cues[cue_idx];
-        cue.takes.push(take);
-        cue.selected_take_id = Some(take_id.clone());
-        cue.dirty = true;
-
-        // Run the solver to update cue status.
-        Self::update_solver(project);
-
         self.current = None;
-        let ev = JobEvent::Completed {
-            cue_id: job.cue_id.clone(),
-            take_id,
-            duration_ms,
-        };
         let _ = self.events.send(ev.clone());
         Some(ev)
     }
@@ -329,6 +239,133 @@ impl JobQueue {
             }
         }
         events
+    }
+}
+
+/// Execute a single job against the worker and project without touching the
+/// queue. Returns the terminal event (Completed or Failed); the caller
+/// decides how to surface it.
+pub fn execute_job(
+    job: &Job,
+    worker: &mut WorkerClient,
+    project: &mut Project,
+    reference_audio_path: &str,
+    reference_transcript: &str,
+    settings: &serde_json::Value,
+) -> JobEvent {
+    // Find the cue.
+    let Some(cue_idx) = project.cues.iter().position(|c| c.id == job.cue_id) else {
+        return JobEvent::Failed {
+            cue_id: job.cue_id.clone(),
+            error: WorkerError {
+                code: -1,
+                message: "cue not found".to_string(),
+                kind: "cue-not-found".to_string(),
+            },
+        };
+    };
+
+    let cue = &project.cues[cue_idx];
+    let text = cue.text.clone();
+    let seed = match job.action {
+        JobAction::Generate => {
+            // Use a random seed.
+            use rand::Rng;
+            rand::thread_rng().gen_range(1..1_000_000_000)
+        }
+        JobAction::Regenerate { seed } => seed,
+    };
+
+    // Preprocess reference if needed (the worker caches internally).
+    let preprocess_result = worker.call(
+        "tts.preprocess_reference",
+        serde_json::json!({
+            "audioPath": reference_audio_path,
+            "transcript": reference_transcript,
+        }),
+    );
+    let reference = match preprocess_result {
+        Ok(v) => v,
+        Err(e) => {
+            return JobEvent::Failed {
+                cue_id: job.cue_id.clone(),
+                error: e,
+            };
+        }
+    };
+
+    // Synthesize.
+    let synthesize_result = worker.call(
+        "tts.synthesize",
+        serde_json::json!({
+            "reference": {
+                "audioPath": reference["audioPath"],
+                "transcript": reference["transcript"],
+                "durationMs": reference["durationMs"],
+                "sampleRate": reference["sampleRate"],
+                "sha256": reference["sha256"],
+            },
+            "text": text,
+            "seed": seed,
+            "settings": settings,
+        }),
+    );
+    let result = match synthesize_result {
+        Ok(v) => v,
+        Err(e) => {
+            return JobEvent::Failed {
+                cue_id: job.cue_id.clone(),
+                error: e,
+            };
+        }
+    };
+
+    let audio_path = result["audioPath"].as_str().unwrap_or("").to_string();
+    let duration_ms = result["durationMs"].as_u64().unwrap_or(0);
+    let settings_hash = result["settingsHash"].as_str().unwrap_or("").to_string();
+
+    // Unique take id per cue: seed + per-cue counter. The worker writes
+    // `take-{seed}.wav`; we rename it into the project `takes/` folder so
+    // two takes with the same seed never overwrite each other and the
+    // stored path is project-relative (survives project relocation).
+    let counter = project.cues[cue_idx].takes.len() + 1;
+    let take_id = format!("take-{seed}-{counter:02}");
+    let project_dir = project.project_dir.clone();
+    let final_audio = project_dir
+        .join("takes")
+        .join(format!("{take_id}.wav"));
+    if let Some(parent) = final_audio.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let worker_out = Path::new(&audio_path);
+    if worker_out != final_audio {
+        let _ = std::fs::rename(worker_out, &final_audio);
+    }
+    let relative_audio = format!("takes/{}", final_audio.file_name().unwrap().to_string_lossy());
+
+    // Create the Take and add it to the cue.
+    let take = Take {
+        take_id: take_id.clone(),
+        cue_id: job.cue_id.clone(),
+        provider: "jaitts-f5tts".to_string(),
+        provider_version: "1.1.22".to_string(),
+        seed,
+        duration_ms,
+        settings_hash,
+        audio_path: relative_audio,
+    };
+    let cue = &mut project.cues[cue_idx];
+    cue.takes.push(take);
+    cue.selected_take_id = Some(take_id.clone());
+    cue.dirty = true;
+
+    // Run the solver to update cue status.
+    JobQueue::update_solver(project);
+
+    JobEvent::Completed {
+        cue_id: job.cue_id.clone(),
+        take_id,
+        duration_ms,
     }
 }
 
