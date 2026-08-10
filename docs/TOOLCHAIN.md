@@ -6,7 +6,7 @@
 |---|---|---|
 | Windows | 10/11 (x64) | target platform เท่านั้น |
 | Rust (rustup stable) | 1.97.1 (MSVC) | `x86_64-pc-windows-msvc` |
-| MSVC Build Tools | 2022 17.14 (14.44.35207) | C++ toolset สําหรับ link |
+| MSVC Build Tools | 14.51.36231 (VS 2026 Community) | C++ toolset สำหรับ link |
 | Node.js | 24.18.0 | npm 11.16.0 |
 | Python | 3.11.15 | worker sidecar |
 | Tauri | 2.x | จัดการผ่าน Cargo/npm |
@@ -24,7 +24,8 @@ py -3.11 --version
 ## Windows prerequisites
 
 - WebView2 Runtime (ติดตั้งกับ Windows 10/11 ตามปกติ)
-- MSVC C++ build tools จาก Visual Studio Installer
+- Visual Studio 2026 Community หรือ Build Tools 2022 พร้อม Desktop development
+  with C++ workload
 - rustup toolchain `stable-x86_64-pc-windows-msvc`
 
 ## Development commands
