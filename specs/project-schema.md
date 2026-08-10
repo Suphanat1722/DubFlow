@@ -1,9 +1,12 @@
-# DubFlow Project Schema (Draft)
+# DubFlow Project Schema
+
+Status: Implemented (Phase 2). `schemaVersion: 1` is the current schema and
+the migration boundary lives in `desktop/src-tauri/src/domain/project.rs`.
 
 โปรเจกต์เป็นโฟลเดอร์ `.dubflow` ประกอบด้วย `project.json` ที่ versioned,
 processed reference, raw takes และ cache
 
-## project.json (draft v1)
+## project.json (v1)
 
 ```json
 {
@@ -58,7 +61,11 @@ processed reference, raw takes และ cache
 ## Rules
 
 - `schemaVersion` เปลี่ยนเมื่อโครงสร้างไม่ backward compatible; migration
-  อยู่ใน Phase 2
+  boundary อยู่ที่ deserialization layer: ระบบ reject version ต่ำกว่า 1 หรือสูงกว่า 1
 - Raw take ห้ามแก้ไขหลังสร้าง; การเลือก take เก็บใน project state
-- Path เก็บเป็น absolute แต่มี `relinkKey` สําหรับ relink เมื่อไฟล์ย้ายที่
-- ยังเป็น draft จน Phase 2 เริ่ม implement persistence
+- Path เก็บเป็น absolute แต่มี `relinkKey` สำหรับ relink เมื่อไฟล์ย้ายที่
+- JSON ใช้ camelCase ตามตัวอย่างด้านบน; `createdAt` เป็น ISO-8601 UTC
+- Timeline Solver คำนวณภายในด้วย integer samples ที่ 48 kHz (`samples = ms * 48`)
+  เพื่อป้องกัน float drift; `renderStartMs/renderEndMs` เป็นค่าที่แปลงจาก samples
+- `Cue` และ `Take` ใช้ camelCase fields และ optional fields (`selectedTakeId`,
+  `takes`, `status`) มี default เมื่ออ่าน JSON ที่ไม่มี field นั้น
