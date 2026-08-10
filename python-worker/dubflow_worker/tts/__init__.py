@@ -12,6 +12,19 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
+class TtsError(Exception):
+    """Structured error surfaced to the Rust shell and then to the user.
+
+    ``kind`` is a stable machine-readable code the shell can map to a
+    localized user-facing message without parsing free-form text.
+    """
+
+    def __init__(self, kind: str, message: str) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.message = message
+
+
 @dataclass(frozen=True)
 class ReferenceInput:
     audio_path: str

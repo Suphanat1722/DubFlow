@@ -1,7 +1,8 @@
 # DubFlow Project Schema
 
-Status: Implemented (Phase 2). `schemaVersion: 1` is the current schema and
-the migration boundary lives in `desktop/src-tauri/src/domain/project.rs`.
+Status: Implemented (Phase 2, extended in Phase 3). `schemaVersion: 1` is the
+current schema and the migration boundary lives in
+`desktop/src-tauri/src/domain/project.rs`.
 
 โปรเจกต์เป็นโฟลเดอร์ `.dubflow` ประกอบด้วย `project.json` ที่ versioned,
 processed reference, raw takes และ cache
@@ -26,7 +27,9 @@ processed reference, raw takes และ cache
     "videoPath": "C:/videos/input.mp4",
     "startMs": 12000,
     "endMs": 15000,
-    "transcript": "สวัสดีครับ"
+    "externalAudioPath": "",
+    "transcript": "สวัสดีครับ",
+    "processedAudioPath": "reference/reference.wav"
   },
   "cues": [
     {
@@ -42,6 +45,15 @@ processed reference, raw takes และ cache
   ]
 }
 ```
+
+`reference` มี `source` เป็น `video-segment` หรือ `external-audio`:
+
+- `video-segment`: ใช้ `videoPath` + `startMs`/`endMs` (3-12 วินาที) และ
+  transcript มาจาก SRT ของช่วงนั้น (ผู้ใช้เลือก/แก้ไขได้)
+- `external-audio`: ใช้ `externalAudioPath` (ไฟล์ audio 3-12 วินาที) และ
+  transcript ที่ผู้ใช้กรอกเอง
+- ทั้งสองแบบเก็บ processed audio ไว้ที่ `processedAudioPath` (24 kHz mono WAV
+  ภายในโฟลเดอร์โปรเจกต์) เพื่อให้โปรเจกต์ย้ายที่ได้
 
 ## Raw Take (immutable)
 
@@ -63,6 +75,10 @@ processed reference, raw takes และ cache
 - `schemaVersion` เปลี่ยนเมื่อโครงสร้างไม่ backward compatible; migration
   boundary อยู่ที่ deserialization layer: ระบบ reject version ต่ำกว่า 1 หรือสูงกว่า 1
 - Raw take ห้ามแก้ไขหลังสร้าง; การเลือก take เก็บใน project state
+- `audioPath` ของ take เก็บเป็น relative (`takes/take-{seed}-{n:02}.wav`)
+  ภายในโฟลเดอร์โปรเจกต์ ตั้งแต่ Phase 3 เพื่อให้โปรเจกต์ย้ายที่ได้
+- Stretch cache อยู่ที่ `cache/stretch-{takeId}-{speedPct}.wav` และเป็น
+  derived artifact (สร้างใหม่ได้) ไม่ใช่ raw take
 - Path เก็บเป็น absolute แต่มี `relinkKey` สำหรับ relink เมื่อไฟล์ย้ายที่
 - JSON ใช้ camelCase ตามตัวอย่างด้านบน; `createdAt` เป็น ISO-8601 UTC
 - Timeline Solver คำนวณภายในด้วย integer samples ที่ 48 kHz (`samples = ms * 48`)

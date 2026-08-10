@@ -29,6 +29,7 @@ from . import (
     SynthesisRequest,
     SynthesisResult,
     SynthesisSettings,
+    TtsError,
     settings_hash,
 )
 
@@ -225,7 +226,7 @@ class JaittsF5TtsProvider:
             device=self._device,
         )
         if wav is None:
-            raise RuntimeError("synthesis produced no audio")
+            raise TtsError("no-audio", "synthesis produced no audio")
 
         out_dir = Path(request.output_dir) if request.output_dir else None
         if not out_dir:

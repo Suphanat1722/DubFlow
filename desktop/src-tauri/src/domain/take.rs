@@ -56,6 +56,10 @@ pub struct Cue {
     pub selected_take_id: Option<TakeId>,
     #[serde(default)]
     pub takes: Vec<Take>,
+    /// True when the cue's takes or selection have changed since the last
+    /// project save. Not persisted.
+    #[serde(skip)]
+    pub dirty: bool,
 }
 
 impl Cue {
@@ -69,6 +73,7 @@ impl Cue {
             status: CueStatus::NotGenerated,
             selected_take_id: None,
             takes: Vec::new(),
+            dirty: false,
         }
     }
 

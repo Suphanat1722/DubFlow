@@ -11,6 +11,7 @@ from .tts import (
     ReferenceInput,
     SynthesisRequest,
     SynthesisSettings,
+    TtsError,
 )
 from .ipc import RpcResponse, encode_response, parse_request
 
@@ -20,10 +21,19 @@ class Worker:
 
     def __init__(self) -> None:
         self._provider: Any | None = None
+        self._output_dir: str | None = None
 
     def handle(self, method: str, params: dict) -> dict:
         if method == "system.ping":
             return {"pong": True}
+        if method == "worker.configure":
+            output_dir = params.get("outputDir")
+            if output_dir is not None:
+                import os
+
+                os.makedirs(output_dir, exist_ok=True)
+                self._output_dir = output_dir
+            return {"outputDir": self._output_dir}
         if method == "tts.initialize":
             if self._provider is not None:
                 return {"alreadyInitialized": True}
@@ -53,6 +63,8 @@ class Worker:
                 "sha256": artifact.sha256,
             }
         if method == "tts.synthesize":
+            if self._output_dir is None:
+                raise ValueError("worker.configure with outputDir must be called before synthesis")
             if self._provider is None:
                 raise ValueError("tts.initialize must be called first")
             request = SynthesisRequest(
@@ -74,7 +86,7 @@ class Worker:
                     speed=float(params.get("settings", {}).get("speed", 1.0)),
                     target_rms=float(params.get("settings", {}).get("targetRms", 0.1)),
                 ),
-                output_dir=params.get("outputDir"),
+                output_dir=self._output_dir,
             )
             result = self._provider.synthesize(request)
             return {
@@ -102,6 +114,18 @@ def handle(method: str, params: dict) -> dict:
     return _WORKER.handle(method, params)
 
 
+def error_payload(exc: Exception) -> dict:
+    """Build a JSON-RPC error object with a stable ``kind`` for known errors."""
+    payload: dict[str, Any] = {"code": -32601, "message": str(exc)}
+    if isinstance(exc, TtsError):
+        payload["kind"] = exc.kind
+    elif isinstance(exc, FileNotFoundError):
+        payload["kind"] = "missing-file"
+    else:
+        payload["kind"] = ""
+    return payload
+
+
 _WORKER = Worker()
 
 
@@ -117,7 +141,7 @@ def run() -> None:
         except Exception as exc:
             response = RpcResponse(
                 id=getattr(exc, "id", -1),
-                error={"code": -32601, "message": str(exc)},
+                error=error_payload(exc),
             )
         sys.stdout.write(encode_response(response) + "\n")
         sys.stdout.flush()
@@ -125,6 +149,8 @@ def run() -> None:
 
 def main() -> None:
     try:
+        if hasattr(sys.stdin, "reconfigure"):
+            sys.stdin.reconfigure(encoding="utf-8", errors="replace")
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         if hasattr(sys.stderr, "reconfigure"):

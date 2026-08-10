@@ -31,6 +31,9 @@ pub enum ProjectError {
     MissingSrt { path: String },
     CorruptMedia { message: String },
     RelinkFailed { key: String, tried: Vec<String> },
+    Worker { message: String },
+    InvalidReference { message: String },
+    MissingReferenceAudio { path: String },
 }
 
 impl std::fmt::Display for ProjectError {
@@ -46,6 +49,13 @@ impl std::fmt::Display for ProjectError {
             ProjectError::CorruptMedia { message } => write!(f, "corrupt media: {message}"),
             ProjectError::RelinkFailed { key, tried } => {
                 write!(f, "relink failed for key {key}, tried {tried:?}")
+            }
+            ProjectError::Worker { message } => write!(f, "worker error: {message}"),
+            ProjectError::InvalidReference { message } => {
+                write!(f, "invalid reference: {message}")
+            }
+            ProjectError::MissingReferenceAudio { path } => {
+                write!(f, "missing reference audio: {path}")
             }
         }
     }
@@ -414,7 +424,6 @@ mod tests {
         .unwrap();
 
         // Add a cue with a take
-        let mut project = project;
         let mut cue = Cue::new("cue-001".into(), 1, "สวัสดี".into(), 1000, 3000);
         cue.takes.push(Take {
             take_id: "take-001".into(),
