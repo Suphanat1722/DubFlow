@@ -317,6 +317,49 @@ pub fn has_audio_stream(path: &Path) -> Result<bool, MediaError> {
     Ok(streams.iter().any(|s| s["codec_type"] == "audio"))
 }
 
+/// Probe the video stream codec name (e.g. "h264") via ffprobe.
+pub fn probe_video_codec(path: &Path) -> Result<String, MediaError> {
+    let output = Command::new("ffprobe")
+        .args([
+            "-v",
+            "quiet",
+            "-show_entries",
+            "stream=codec_type,codec_name",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .output()
+        .map_err(|e| MediaError::ProbeFailed {
+            path: path.to_string_lossy().to_string(),
+            message: format!("cannot execute ffprobe: {e}"),
+        })?;
+    if !output.status.success() {
+        return Err(MediaError::ProbeFailed {
+            path: path.to_string_lossy().to_string(),
+            message: String::from_utf8_lossy(&output.stderr).to_string(),
+        });
+    }
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).map_err(|e| MediaError::ProbeFailed {
+            path: path.to_string_lossy().to_string(),
+            message: format!("cannot parse ffprobe output: {e}"),
+        })?;
+    let streams = parsed["streams"].as_array().ok_or_else(|| {
+        MediaError::ProbeFailed {
+            path: path.to_string_lossy().to_string(),
+            message: "no streams array in ffprobe output".to_string(),
+        }
+    })?;
+    let video = streams
+        .iter()
+        .find(|s| s["codec_type"] == "video")
+        .and_then(|s| s["codec_name"].as_str())
+        .unwrap_or("")
+        .to_string();
+    Ok(video)
+}
+
 /// A single amplitude bucket for waveform rendering.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct PeakSegment {

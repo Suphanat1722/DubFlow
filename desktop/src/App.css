@@ -738,3 +738,95 @@ textarea {
     background: #1e3a5f;
   }
 }
+
+/* ── Export Panel ── */
+.export-panel {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.export-modes {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.export-mode {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.export-desc {
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 0.4rem;
+}
+
+.export-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.export-hint {
+  font-size: 0.7rem;
+  color: #888;
+}
+
+.export-blocked {
+  font-size: 0.75rem;
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  margin: 0.4rem 0;
+}
+
+.export-blocked ul {
+  margin: 0.25rem 0 0 1.2rem;
+  padding: 0;
+}
+
+.export-blocked li {
+  margin-bottom: 0.15rem;
+}
+
+.export-result {
+  font-size: 0.75rem;
+  color: #15803d;
+  word-break: break-all;
+  margin-top: 0.35rem;
+  padding: 0.3rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .export-panel {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .export-desc { color: #aaa; }
+
+  .export-blocked {
+    background: #3b1a1a;
+    color: #fca5a5;
+    border-color: #5c1a1a;
+  }
+
+  .export-result {
+    background: #1a3a1a;
+    color: #86efac;
+    border-color: #166534;
+  }
+
+  .export-hint { color: #888; }
+}

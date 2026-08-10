@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use domain::job::{self, Job, JobAction, JobQueue};
+use domain::export::{self, ExportMode, ExportRequest};
 use domain::project::{Project, ProjectError};
 use domain::reference;
 use domain::srt::parse_srt;
@@ -49,6 +50,15 @@ fn project_error_to_command(err: ProjectError) -> String {
             format!("missing reference audio: {path}")
         }
         other => other.to_string(),
+    }
+}
+
+fn export_mode_from_str(mode: &str) -> Result<ExportMode, String> {
+    match mode {
+        "replace" => Ok(ExportMode::Replace),
+        "mix" => Ok(ExportMode::Mix),
+        "voiceTrack" | "voice-track" => Ok(ExportMode::VoiceTrack),
+        _ => Err(format!("unknown export mode: {mode}")),
     }
 }
 
@@ -307,6 +317,65 @@ fn export_blocked(state: tauri::State<'_, AppState>) -> Result<bool, String> {
     let guard = state.project.lock().unwrap();
     let project = guard.as_ref().ok_or_else(|| "no project open".to_string())?;
     Ok(timeline::export_blocked_by_cue_status(&project.cues))
+}
+
+/// Validate whether the project can be exported in a given mode.
+#[tauri::command]
+fn export_validate(
+    state: tauri::State<'_, AppState>,
+    mode: String,
+) -> Result<serde_json::Value, String> {
+    let guard = state.project.lock().unwrap();
+    let project = guard.as_ref().ok_or_else(|| "no project open".to_string())?;
+    let mode = export_mode_from_str(&mode)?;
+    let video_path = std::path::Path::new(&project.video.path);
+    let video_has_audio = match domain::media::has_audio_stream(video_path) {
+        Ok(v) => v,
+        Err(e) => {
+            // Missing/corrupt video blocks export; surface it as a reason so
+            // the UI can show the blocker instead of a bare command error.
+            return Ok(serde_json::json!({
+                "exportBlocked": true,
+                "reasons": [format!("video probe failed: {e}")],
+            }));
+        }
+    };
+    let video_duration = domain::media::probe_duration(std::path::Path::new(&project.video.path))
+        .ok();
+    let validation = export::validate_export(&project.cues, mode, video_has_audio, video_duration);
+    serde_json::to_value(&validation).map_err(|e| e.to_string())
+}
+
+/// Export the project to `output_path` in the given mode.
+///
+/// This is a synchronous, blocking command: it renders the voice master and
+/// runs FFmpeg. The UI invokes it from a button that disables itself while
+/// it runs, so the command can stay simple for the MVP.
+#[tauri::command]
+fn export_run(
+    state: tauri::State<'_, AppState>,
+    mode: String,
+    output_path: String,
+    original_gain_db: Option<f64>,
+) -> Result<serde_json::Value, String> {
+    let mode = export_mode_from_str(&mode)?;
+    let guard = state.project.lock().unwrap();
+    let project = guard.as_ref().ok_or_else(|| "no project open".to_string())?;
+    let video_has_audio = domain::media::has_audio_stream(std::path::Path::new(&project.video.path))
+        .map_err(|e| e.to_string())?;
+    let request = ExportRequest {
+        project_dir: project.project_dir.clone(),
+        video_path: project.video.path.clone(),
+        cues: project.cues.clone(),
+        output_path: std::path::PathBuf::from(&output_path),
+        mode,
+        original_gain_db: original_gain_db.unwrap_or(-12.0),
+    };
+    let samples = export::run_export(&request, video_has_audio).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "samples": samples,
+        "outputPath": output_path,
+    }))
 }
 
 /// Get the current solver result for the project.
@@ -746,6 +815,8 @@ pub fn run() {
             cue_update_text,
             probe_video_duration,
             export_blocked,
+            export_validate,
+            export_run,
             solve_timeline,
             take_audio_url,
             jobs_run_next,

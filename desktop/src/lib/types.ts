@@ -93,3 +93,15 @@ export interface PeakSegment {
   min: number;
   max: number;
 }
+
+export type ExportMode = "replace" | "mix" | "voiceTrack";
+
+export interface ExportValidation {
+  exportBlocked: boolean;
+  reasons: string[];
+}
+
+export interface ExportResult {
+  samples: number;
+  outputPath: string;
+}

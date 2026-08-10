@@ -33,4 +33,12 @@ describe("i18n", () => {
     expect(statusLabel("Too Long")).toBe("เสียงยาวเกิน");
     expect(statusLabel("Error")).toBe("เกิดข้อผิดพลาด");
   });
+
+  it("has thai export strings", () => {
+    expect(t("exportTitle")).toBe("Export");
+    expect(t("exportModeReplace")).toBe("แทนที่เสียงเดิม");
+    expect(t("exportModeMix")).toBe("ผสมเสียง");
+    expect(t("exportModeVoiceTrack")).toBe("เฉพาะเสียงพากย์");
+    expect(t("exportOriginalGain")).toBe("ระดับเสียงเดิม (dB)");
+  });
 });

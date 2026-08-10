@@ -8,6 +8,7 @@ import { SubtitleList } from "./SubtitleList";
 import { TimelineBar } from "./TimelineBar";
 import { VideoPreview } from "./VideoPreview";
 import { TakeInspector } from "./TakeInspector";
+import { ExportPanel } from "./ExportPanel";
 import type { Project, SolvedCue, SolverResult, ReferenceData, JobEvent } from "../lib/types";
 
 export function Editor({
@@ -346,6 +347,11 @@ export function Editor({
             onDeleteTake={handleDeleteTake}
             onGenerateOne={handleGenerateOne}
             onPlay={handlePlay}
+          />
+          <ExportPanel
+            projectDir={project.projectDir}
+            onMessage={setMessage}
+            onError={setError}
           />
         </div>
       </div>

@@ -139,6 +139,22 @@ const th = {
   waveformLoading: "กำลังโหลดรูปคลื่น...",
   waveformEmpty: "ไม่มีเสียงให้แสดง",
   waveformError: "โหลดรูปคลื่นไม่สำเร็จ",
+  // Export
+  exportTitle: "Export",
+  exportModeReplace: "แทนที่เสียงเดิม",
+  exportModeMix: "ผสมเสียง",
+  exportModeVoiceTrack: "เฉพาะเสียงพากย์",
+  exportReplaceDesc: "เสียงวิดีโอเดิมถูกแทนที่ด้วยเสียงพากย์ AAC 192 kbps (วิดีโอไม่ถูกเข้ารหัสใหม่)",
+  exportMixDesc: "เสียงวิดีโอเดิม (-12 dB) ผสมกับเสียงพากย์ (0 dB) พร้อม Limiter",
+  exportVoiceTrackDesc: "เสียงพากย์ mono 48 kHz 24-bit PCM WAV",
+  exportOriginalGain: "ระดับเสียงเดิม (dB)",
+  exportChooseOutput: "เลือกที่จัดเก็บ",
+  exportRunning: "กําลัง Export...",
+  exportSuccess: "Export สําเร็จ",
+  exportFailed: "Export ไม่สําเร็จ",
+  exportBlockedReason: "สาเหตุ",
+  exportNoGpu: "Export ใช้ได้แม้ไม่มี GPU",
+  exportOutput: "ไฟล์ที่ส่งออก",
 };
 
 export type Locale = typeof th;
