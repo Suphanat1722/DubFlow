@@ -1,0 +1,21 @@
+# Local agent handoff and project-planning documents.
+# Keep these files in the working directory, but never commit them.
+/AGENTS.md
+/docs/PROJECT_CONTEXT.md
+/docs/PHASE_PLAN.md
+/docs/STATUS.md
+/docs/DECISIONS.md
+/docs/phase-reports/
+
+# DubFlow: generated artifacts must never be committed
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/schemas/
+python-worker/.venv/
+python-worker/__pycache__/
+python-worker/.pytest_cache/
+*.pyc
+runtime/
+models/
+takes/
