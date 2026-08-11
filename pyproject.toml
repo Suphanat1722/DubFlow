@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dubflow"
+version = "0.1.0"
+description = "Desktop SRT-to-voice workflow with timeline-aware audio fitting"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10,<3.13"
+dependencies = ["PySide6>=6.7,<7"]
+
+[project.urls]
+Homepage = "https://github.com/Suphanat1722/DubFlow"
+Repository = "https://github.com/Suphanat1722/DubFlow"
+Issues = "https://github.com/Suphanat1722/DubFlow/issues"
+
+[project.optional-dependencies]
+jaitts = [
+  "f5-tts==1.1.22",
+  "huggingface-hub>=0.27",
+  "numpy>=1.26",
+  "soundfile>=0.12",
+  "torch>=2.2",
+  "torchaudio>=2.2",
+]
+dev = ["pytest>=8"]
+build = ["pyinstaller>=6.10,<7"]
+
+[project.scripts]
+dubflow = "app.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,34 +1,72 @@
 # DubFlow
 
-DubFlow เป็น Windows desktop application สำหรับสร้างเสียงพากย์ไทยจากไฟล์ SRT ด้วย AI
-ทีละประโยค จัดความยาวและตำแหน่งเสียงให้สัมพันธ์กับ timeline ของวิดีโอ และ export
-เป็นวิดีโอหรือ voice track โดยใช้ FFmpeg
+Desktop GUI สำหรับสร้างเสียงพากย์ภาษาไทยจาก SRT ด้วย JaiTTS-F5TTS แล้วจัดเสียงให้เข้ากับ timeline ของวิดีโอ โดยเก็บ SRT ต้นฉบับและ raw Take ทุกชุดไว้เสมอ
 
-## สถานะโครงการ
+> **สถานะ:** เวอร์ชันแรก `0.1.0` สำหรับ Windows อยู่ในช่วง MVP
 
-- Windows 10/11 เท่านั้น (Tauri 2 + React/TypeScript + Rust shell + Python 3.11 sidecar)
-- MVP: หนึ่ง Reference Voice ต่อโปรเจกต์, input เฉพาะ MP4 H.264/AAC + SRT UTF-8
-- Hardware acceptance target: NVIDIA GTX 1070 Ti (CC 6.1, VRAM 8 GB)
-- Modern GPU (CC >= 7.5) ยังไม่เข้า supported matrix จนกว่าจะมี hardware evidence
+## สิ่งที่ทำได้
 
-## การติดตั้ง
+- สร้าง/เปิด/บันทึกโปรเจกต์แยกโฟลเดอร์
+- Import วิดีโอและ SRT (UTF-8, UTF-16 และ CP874)
+- ใช้ reference voice จากไฟล์เสียงหรือดึงช่วง 3–12 วินาทีจากวิดีโอ
+- Generate ทีละ subtitle หรือทั้งรายการผ่าน TTS provider interface
+- เก็บหลาย Take ต่อ subtitle โดยไม่ overwrite Take เดิม
+- Trim silence, time stretch แบบไม่เปลี่ยน pitch, normalize และ fade ด้วย FFmpeg
+- Auto-fit และ bounded ripple โดยหยุดที่ lock, large gap หรือ video end
+- Preview วิดีโอพร้อม subtitle, เล่น Take และดู timeline แบบย่อ
+- Export voice-only, replace audio หรือ mix พร้อม basic ducking
+- ตรวจ NVIDIA GPU/VRAM โดยแยก logic ออกจาก GUI
+- เปลี่ยน Workspace Root และ max speed ได้
 
-1. ดาวน์โหลด installer จาก release (Windows x64)
-2. รัน DubFlow ครั้งแรก — ตัวแอปตรวจสอบ GPU, ขอ license acceptance (CC BY-NC 4.0)
-   และดาวน์โหลด Python runtime, PyTorch wheels และ model weights ไปที่
-   `%APPDATA%\DubFlow\` (ใช้ครั้งเดียว หลังติดตั้งแล้วทำงาน offline ได้)
-3. สร้างโปรเจกต์ เลือกวิดีโอ MP4 + SRT สร้าง Reference Voice แล้ว Generate
+## โครงสร้างข้อมูล
 
-> ต้องการพื้นที่ว่างอย่างน้อย ~6 GB สำหรับ runtime + model และอินเทอร์เน็ตเฉพาะครั้งแรก
+Workspace ที่เลือกจะมี `runtime/`, `models/`, `cache/`, `projects/`, `temp/` และ `config/` ส่วนแต่ละโปรเจกต์มี `source/`, `voices/`, `cache/`, `export/` และ `project.json` ไฟล์เสียงอยู่ใน `voices/0001/take-01.wav` ตามลำดับ
 
-## เอกสาร
+## เริ่มพัฒนา
 
-- `docs/DEVELOPMENT.md` — วิธี build/test จาก source
-- `docs/TOOLCHAIN.md` — toolchain ที่ใช้
-- `docs/THIRD_PARTY_NOTICES.md` — license ของ FFmpeg/Python/PyTorch/model
-- `docs/RELEASE_CHECKLIST.md` — clean-machine release checklist (Phase 6)
-- `docs/ACCEPTANCE_FIXTURES.md` — acceptance fixtures และ license ของไฟล์ทดสอบ
+ต้องใช้ Python 3.10–3.12 และ FFmpeg/FFprobe ใน PATH ตรวจเครื่องมือที่มีอยู่ก่อนติดตั้งเสมอ
 
-## งานใน scope ของ MVP
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m pip install -e .
+.venv\Scripts\python -m app
+```
 
-ดู `docs/PROJECT_CONTEXT.md` สำหรับขอบเขตและสิ่งที่ไม่อยู่ใน MVP
+JaiTTS เป็น dependency ขนาดใหญ่และต้องเลือก PyTorch/CUDA build ให้ตรงกับ GPU ชุดที่ตรวจผ่านกับ GTX 1070 Ti คือ Python 3.11 และ CUDA 12.6:
+
+```powershell
+.venv\Scripts\python -m pip install torch==2.11.0+cu126 torchaudio==2.11.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+.venv\Scripts\python -m pip install -e ".[jaitts]"
+```
+
+โปรแกรมโหลด revision ที่ล็อกไว้ของ `JTS-AI/JaiTTS-F5TTS` ครั้งแรกเมื่อสั่ง Generate และเก็บ checkpoint กับ Vocos ใต้ `models/` ของ Workspace ที่เลือก
+
+## License และการใช้งานโมเดล
+
+ซอร์สโค้ด DubFlow เป็นโอเพนซอร์สภายใต้ [MIT License](LICENSE) แต่โมเดล JaiTTS-F5TTS และส่วนประกอบภายนอกมีเงื่อนไขของตนเอง โดยเฉพาะน้ำหนักโมเดล JaiTTS-F5TTS ที่ใช้ CC BY-NC 4.0 และมีข้อจำกัดการใช้งานเชิงพาณิชย์ ดูรายละเอียดที่ [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+
+## ทดสอบ Core
+
+ชุดทดสอบไม่ต้องใช้ PySide6, FFmpeg หรือ model:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+## ข้อจำกัด MVP
+
+- Timeline เป็น visualization และ auto solver ยังไม่ใช่ editor แบบลากหลาย track
+- JaiTTS runtime ยังไม่ถูก bundle เป็น installer; ต้องเตรียม Python/PyTorch ที่เข้ากันก่อน
+- การย้าย source video/SRT หลังสร้างโปรเจกต์ต้อง Import ใหม่
+
+## Build และ Installer
+
+มี [dubflow.spec](dubflow.spec) สำหรับ PyInstaller และ [installer/DubFlow.iss](installer/DubFlow.iss) สำหรับ Inno Setup ตัว installer เปิดหน้าเลือก Install Directory เสมอและไม่บังคับ Drive C ส่วน Workspace เปลี่ยนแยกได้ใน Settings
+
+```powershell
+python -m pip install -e ".[jaitts,build]"
+pyinstaller --clean --noconfirm dubflow.spec
+iscc installer\DubFlow.iss
+```
+
+เครื่องมือ build เหล่านี้ไม่รวมอยู่ในเครื่องทุกเครื่อง จึงต้องตรวจของเดิมและให้ผู้ใช้ยืนยันก่อนติดตั้ง
