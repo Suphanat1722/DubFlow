@@ -20,7 +20,12 @@ def main() -> int:
         print("ยังไม่พบ PySide6: ติดตั้ง dependency ของโปรเจกต์ก่อนเรียก DubFlow", file=sys.stderr)
         return 2
 
+    from app.runtime import activate_runtime
     from app.settings import SettingsStore
+    root = application_root()
+    settings_store = SettingsStore(root / "config" / "app-settings.json")
+    activate_runtime(settings_store.load().runtime_root)
+
     from app.ui.main_window import MainWindow
     from app.ui.theme import configure_application_font
 
@@ -28,8 +33,7 @@ def main() -> int:
     application.setApplicationName("DubFlow")
     application.setOrganizationName("DubFlow")
     configure_application_font(application)
-    root = application_root()
-    window = MainWindow(SettingsStore(root / "config" / "app-settings.json"))
+    window = MainWindow(settings_store)
     window.show()
     return application.exec()
 

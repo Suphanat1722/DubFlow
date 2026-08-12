@@ -72,12 +72,20 @@ class SettingsDialog(QDialog):
         workspace_row = QHBoxLayout()
         workspace_row.addWidget(self.workspace)
         workspace_row.addWidget(browse)
+        self.runtime = QLineEdit(settings.runtime_root)
+        self.runtime.setPlaceholderText(r"เช่น E:\DubFlow\.venv")
+        runtime_browse = QPushButton("เลือก…")
+        runtime_browse.clicked.connect(self._browse_runtime)
+        runtime_row = QHBoxLayout()
+        runtime_row.addWidget(self.runtime)
+        runtime_row.addWidget(runtime_browse)
         self.max_speed = QDoubleSpinBox()
         self.max_speed.setRange(1.0, 2.0)
         self.max_speed.setSingleStep(0.05)
         self.max_speed.setValue(settings.max_speed)
         form = QFormLayout(self)
         form.addRow("Workspace", workspace_row)
+        form.addRow("AI Runtime", runtime_row)
         form.addRow("ความเร็วสูงสุด", self.max_speed)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -88,6 +96,11 @@ class SettingsDialog(QDialog):
         path = QFileDialog.getExistingDirectory(self, "เลือก Workspace", self.workspace.text())
         if path:
             self.workspace.setText(path)
+
+    def _browse_runtime(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "เลือก Python Runtime (.venv)", self.runtime.text())
+        if path:
+            self.runtime.setText(path)
 
 
 class ExportDialog(QDialog):
@@ -608,7 +621,7 @@ class MainWindow(QMainWindow):
         self.media_player.errorOccurred.connect(lambda _error, message: self._error(f"เล่นวิดีโอไม่ได้: {message}"))
 
     def _show_runtime(self) -> None:
-        task = BackgroundTask(RuntimeManager().detect)
+        task = BackgroundTask(RuntimeManager(self.settings.runtime_root).detect)
         self.runtime_task = task
         task.signals.result.connect(self._apply_runtime)
         task.signals.error.connect(lambda message: self.statusBar().showMessage(f"ตรวจ GPU ไม่สำเร็จ: {message}"))
@@ -877,10 +890,13 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self.settings, self)
         if dialog.exec() == QDialog.Accepted:
             self.settings.workspace_root = str(Path(dialog.workspace.text()).resolve())
+            runtime_root = dialog.runtime.text().strip()
+            self.settings.runtime_root = str(Path(runtime_root).resolve()) if runtime_root else ""
             self.settings.max_speed = dialog.max_speed.value()
             self.settings_store.save(self.settings)
             self.repository = ProjectRepository(self.settings.workspace_root)
-            self.statusBar().showMessage("บันทึก Settings แล้ว (โปรเจกต์ปัจจุบันยังอยู่ที่เดิม)", 6000)
+            self._show_runtime()
+            self.statusBar().showMessage("บันทึก Settings แล้ว · หากเปลี่ยน AI Runtime ให้เปิด DubFlow ใหม่", 8000)
 
     def toggle_video(self) -> None:
         if self.media_player.playbackState() == QMediaPlayer.PlayingState:

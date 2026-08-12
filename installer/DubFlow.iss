@@ -8,6 +8,7 @@ AppId={{F42A90B2-D1CC-4A57-A505-F1DB06F96121}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
+AppPublisherURL=https://github.com/Suphanat1722/DubFlow
 DefaultDirName={autopf}\DubFlow
 DisableDirPage=no
 UsePreviousAppDir=yes

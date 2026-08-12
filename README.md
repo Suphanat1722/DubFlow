@@ -41,6 +41,10 @@ JaiTTS เป็น dependency ขนาดใหญ่และต้องเ�
 
 โปรแกรมโหลด revision ที่ล็อกไว้ของ `JTS-AI/JaiTTS-F5TTS` ครั้งแรกเมื่อสั่ง Generate และเก็บ checkpoint กับ Vocos ใต้ `models/` ของ Workspace ที่เลือก
 
+## Lightweight Setup
+
+ตัว Setup ไม่รวม PyTorch, CUDA หรือโมเดล เพื่อให้ดาวน์โหลดและอัปเดต GUI ได้โดยไม่ต้องโหลดไฟล์ AI ซ้ำ หลังเปิดโปรแกรมให้เข้า **ตั้งค่า → AI Runtime** แล้วเลือกโฟลเดอร์ Python environment ที่ติดตั้ง `torch`, `torchaudio` และ `f5-tts` ไว้ (เช่น `.venv`) จากนั้นเปิด DubFlow ใหม่ ผู้ใช้ยังเลือก Workspace/โมเดลได้เองตามเดิม
+
 ## License และการใช้งานโมเดล
 
 ซอร์สโค้ด DubFlow เป็นโอเพนซอร์สภายใต้ [MIT License](LICENSE) แต่โมเดล JaiTTS-F5TTS และส่วนประกอบภายนอกมีเงื่อนไขของตนเอง โดยเฉพาะน้ำหนักโมเดล JaiTTS-F5TTS ที่ใช้ CC BY-NC 4.0 และมีข้อจำกัดการใช้งานเชิงพาณิชย์ ดูรายละเอียดที่ [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
@@ -56,7 +60,7 @@ python -m unittest discover -s tests -v
 ## ข้อจำกัด MVP
 
 - Timeline เป็น visualization และ auto solver ยังไม่ใช่ editor แบบลากหลาย track
-- JaiTTS runtime ยังไม่ถูก bundle เป็น installer; ต้องเตรียม Python/PyTorch ที่เข้ากันก่อน
+- Lightweight Setup ต้องชี้ไปยัง Python Runtime ที่เตรียม JaiTTS/PyTorch ไว้แยกต่างหาก
 - การย้าย source video/SRT หลังสร้างโปรเจกต์ต้อง Import ใหม่
 
 ## Build และ Installer
