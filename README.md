@@ -20,7 +20,7 @@ Desktop GUI สำหรับสร้างเสียงพากย์ภ�
 
 ## โครงสร้างข้อมูล
 
-Workspace ที่เลือกจะมี `runtime/`, `models/`, `cache/`, `projects/`, `temp/` และ `config/` ส่วนแต่ละโปรเจกต์มี `source/`, `voices/`, `cache/`, `export/` และ `project.json` ไฟล์เสียงอยู่ใน `voices/0001/take-01.wav` ตามลำดับ
+Workspace ที่เลือกจะมี `models/`, `cache/` และ `projects/` ส่วนแต่ละโปรเจกต์มี `voices/`, `cache/`, `export/` และ `project.json` ไฟล์เสียงอยู่ใน `voices/0001/take-01.wav` ตามลำดับ
 
 ## เริ่มพัฒนา
 
@@ -29,7 +29,7 @@ Workspace ที่เลือกจะมี `runtime/`, `models/`, `cache/`, 
 ```powershell
 python -m venv .venv
 .venv\Scripts\python -m pip install -e .
-.venv\Scripts\python -m app
+.venv\Scripts\dubflow.exe
 ```
 
 JaiTTS เป็น dependency ขนาดใหญ่และต้องเลือก PyTorch/CUDA build ให้ตรงกับ GPU ชุดที่ตรวจผ่านกับ GTX 1070 Ti คือ Python 3.11 และ CUDA 12.6:

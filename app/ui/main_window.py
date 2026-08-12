@@ -771,10 +771,9 @@ class MainWindow(QMainWindow):
             cue.status = CueStatus.GENERATING.value
             if progress:
                 progress(completed, total, cue.id)
-            position = self.project.cues.index(cue)
             temporary = self.project_dir / "cache" / f"generation-{cue.id}-{uuid.uuid4().hex}.wav"
             processed = self.project_dir / "cache" / f"processed-{cue.id}-{uuid.uuid4().hex}.wav"
-            request = GenerationRequest(cue.text, reference_path, reference_text, temporary, self.project.cues[position - 1].text if position else "", self.project.cues[position + 1].text if position + 1 < len(self.project.cues) else "", random.randint(1, 2_147_483_647))
+            request = GenerationRequest(cue.text, reference_path, reference_text, temporary, random.randint(1, 2_147_483_647))
             try:
                 result = self.provider.generate(request)
                 self.audio_pipeline.trim_and_fit(result.path, processed)
@@ -1118,6 +1117,10 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "DubFlow", message)
 
     def closeEvent(self, event) -> None:
+        if self._busy:
+            event.ignore()
+            QMessageBox.information(self, "DubFlow", "กรุณาหยุดงานและรอให้รายการปัจจุบันเสร็จก่อนปิดโปรแกรม")
+            return
         if self.project is not None and self.project_dir is not None:
             self.repository.save(self.project, self.project_dir)
         self.provider.unload()

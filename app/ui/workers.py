@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import traceback
 from collections.abc import Callable
 from typing import Any
 
@@ -29,7 +28,6 @@ class BackgroundTask(QRunnable):
         try:
             self.signals.result.emit(self.operation())
         except Exception as exc:
-            traceback.print_exc()
             self.signals.error.emit(str(exc) or exc.__class__.__name__)
         finally:
             self.signals.finished.emit()

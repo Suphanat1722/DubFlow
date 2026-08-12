@@ -24,9 +24,6 @@ class AudioPipeline:
         self.ffmpeg = ffmpeg
         self.ffprobe = ffprobe
 
-    def available(self) -> bool:
-        return shutil.which(self.ffmpeg) is not None and shutil.which(self.ffprobe) is not None
-
     def _run(self, args: list[str]) -> None:
         try:
             result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
@@ -37,15 +34,21 @@ class AudioPipeline:
             raise FfmpegError(message)
 
     def duration_ms(self, path: str | Path) -> int:
-        result = subprocess.run(
-            [self.ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [self.ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as exc:
+            raise FfmpegError(f"เรียก FFprobe ไม่ได้: {exc}") from exc
         if result.returncode:
             raise FfmpegError(result.stderr.strip() or "อ่านความยาว media ไม่ได้")
-        return round(float(json.loads(result.stdout)["format"]["duration"]) * 1000)
+        try:
+            return round(float(json.loads(result.stdout)["format"]["duration"]) * 1000)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise FfmpegError("FFprobe ส่งข้อมูลความยาว media ที่ไม่ถูกต้อง") from exc
 
     def prepare_reference(self, source: str | Path, output: str | Path, start_ms: int | None = None, end_ms: int | None = None) -> Path:
         output_path = Path(output)

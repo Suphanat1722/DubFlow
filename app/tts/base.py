@@ -16,8 +16,6 @@ class GenerationRequest:
     reference_audio: Path
     reference_text: str
     output_path: Path
-    previous_text: str = ""
-    next_text: str = ""
     seed: int = 42
 
 

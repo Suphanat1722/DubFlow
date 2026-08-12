@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 import sys
+from multiprocessing import freeze_support
 from pathlib import Path
 
 
+def application_root() -> Path:
+    """Return a writable root beside the executable for portable builds."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
 def main() -> int:
+    freeze_support()
     try:
         from PySide6.QtWidgets import QApplication
     except ImportError:
@@ -19,7 +28,7 @@ def main() -> int:
     application.setApplicationName("DubFlow")
     application.setOrganizationName("DubFlow")
     configure_application_font(application)
-    root = Path(__file__).resolve().parent.parent
+    root = application_root()
     window = MainWindow(SettingsStore(root / "config" / "app-settings.json"))
     window.show()
     return application.exec()

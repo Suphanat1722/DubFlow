@@ -25,7 +25,6 @@ jaitts = [
   "torch>=2.2",
   "torchaudio>=2.2",
 ]
-dev = ["pytest>=8"]
 build = ["pyinstaller>=6.10,<7"]
 
 [project.scripts]

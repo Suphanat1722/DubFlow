@@ -12,7 +12,6 @@ class AppSettings:
     ffprobe_path: str = "ffprobe"
     max_speed: float = 1.25
     large_gap_ms: int = 2000
-    provider_id: str = "jaitts-f5tts"
 
 
 class SettingsStore:
@@ -27,7 +26,8 @@ class SettingsStore:
             return AppSettings(default_workspace)
         try:
             data = json.loads(self.bootstrap_file.read_text(encoding="utf-8"))
-            return AppSettings(**data)
+            known = {field: data[field] for field in AppSettings.__dataclass_fields__ if field in data}
+            return AppSettings(**known)
         except (OSError, json.JSONDecodeError, TypeError):
             return AppSettings(default_workspace)
 

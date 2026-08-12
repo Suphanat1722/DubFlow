@@ -32,7 +32,7 @@ class ProjectRepository:
         self.workspace_root = Path(workspace_root).expanduser().resolve()
 
     def ensure_workspace(self) -> None:
-        for folder in ("runtime", "models", "cache", "projects", "temp", "config"):
+        for folder in ("models", "cache", "projects"):
             (self.workspace_root / folder).mkdir(parents=True, exist_ok=True)
 
     def create(self, name: str) -> tuple[Project, Path]:
@@ -40,7 +40,7 @@ class ProjectRepository:
         project_dir = self.workspace_root / "projects" / _safe_name(name)
         if project_dir.exists():
             raise ProjectError(f"มีโปรเจกต์ชื่อ {name} อยู่แล้ว")
-        for folder in ("source", "voices", "cache", "export"):
+        for folder in ("voices", "cache", "export"):
             (project_dir / folder).mkdir(parents=True, exist_ok=True)
         now = _now()
         project = Project(SCHEMA_VERSION, name, now, now)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QWidget
 
@@ -37,10 +36,12 @@ class TimelineWidget(QWidget):
             original_width = max(2, round(cue.slot_duration / self._duration * width))
             painter.fillRect(x, 14, original_width, 20, QColor("#38445f"))
             if cue.generated_duration is not None:
+                resolved_start = cue.resolved_start if cue.resolved_start is not None else cue.original_start
+                resolved_x = 12 + round(resolved_start / self._duration * width)
                 end = cue.resolved_end or cue.original_end
-                generated_width = max(2, round((end - (cue.resolved_start or cue.original_start)) / self._duration * width))
+                generated_width = max(2, round((end - resolved_start) / self._duration * width))
                 color = QColor("#ef6b73") if cue.status == CueStatus.NEEDS_REVIEW.value else QColor("#5bc99a")
-                painter.fillRect(x, 46, generated_width, 20, color)
+                painter.fillRect(resolved_x, 46, generated_width, 20, color)
 
         playhead = 12 + round(self._position / self._duration * width)
         painter.setPen(QColor("#ffd166"))

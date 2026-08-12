@@ -1,21 +1,41 @@
 # PyInstaller definition. Build from the repository root with:
-#   pyinstaller --clean --noconfirm dubflow.spec
-from PyInstaller.utils.hooks import collect_all
+#   python -m PyInstaller --clean --noconfirm dubflow.spec
+#
+# Let PyInstaller's package hooks collect PyTorch/CUDA and Qt binaries. Avoid
+# collect_all(f5_tts): that would also bundle its training, Gradio, evaluation,
+# and Triton-server tools. Vocos creates these classes dynamically from YAML,
+# so they are the only inference modules that need explicit hidden imports.
+from PyInstaller.utils.hooks import collect_data_files
 
-datas, binaries, hiddenimports = [], [], []
-for package in ("f5_tts", "torch", "torchaudio", "soundfile"):
-    package_data, package_binaries, package_hidden = collect_all(package)
-    datas += package_data
-    binaries += package_binaries
-    hiddenimports += package_hidden
+
+hiddenimports = [
+    "vocos.feature_extractors",
+    "vocos.heads",
+    "vocos.models",
+]
 
 analysis = Analysis(
     ["app/__main__.py"],
     pathex=["."],
-    binaries=binaries,
-    datas=datas,
+    binaries=[],
+    datas=collect_data_files("x_transformers", include_py_files=True, includes=["*.py"]),
     hiddenimports=hiddenimports,
-    excludes=["pytest"],
+    excludes=[
+        "boto3",
+        "botocore",
+        "bitsandbytes",
+        "datasets",
+        "gradio",
+        "google.cloud",
+        "jupyter",
+        "notebook",
+        "pandas",
+        "pyarrow",
+        "pytest",
+        "sentry_sdk",
+        "sklearn",
+        "tensorboard",
+    ],
     noarchive=False,
 )
 pyz = PYZ(analysis.pure)
