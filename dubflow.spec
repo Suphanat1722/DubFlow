@@ -8,7 +8,7 @@ analysis = Analysis(
     ["app/__main__.py"],
     pathex=["."],
     binaries=[],
-    datas=[],
+    datas=[("app", "app_runtime/app")],
     hiddenimports=[],
     excludes=[
         "accelerate",

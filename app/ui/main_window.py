@@ -73,7 +73,7 @@ class SettingsDialog(QDialog):
         workspace_row.addWidget(self.workspace)
         workspace_row.addWidget(browse)
         self.runtime = QLineEdit(settings.runtime_root)
-        self.runtime.setPlaceholderText(r"เช่น E:\DubFlow\.venv")
+        self.runtime.setPlaceholderText(r"โฟลเดอร์ .venv ที่มี PyTorch เช่น E:\DubFlow\.venv")
         runtime_browse = QPushButton("เลือก…")
         runtime_browse.clicked.connect(self._browse_runtime)
         runtime_row = QHBoxLayout()
@@ -86,6 +86,10 @@ class SettingsDialog(QDialog):
         form = QFormLayout(self)
         form.addRow("Workspace", workspace_row)
         form.addRow("AI Runtime", runtime_row)
+        runtime_help = QLabel("ไม่ใช่โฟลเดอร์โมเดล · เลือก Python .venv ที่ติดตั้ง torch, torchaudio และ f5-tts แล้ว\nโมเดลจะดาวน์โหลดอัตโนมัติไปที่ Workspace\\models เมื่อสร้างเสียงครั้งแรก")
+        runtime_help.setObjectName("helper")
+        runtime_help.setWordWrap(True)
+        form.addRow("", runtime_help)
         form.addRow("ความเร็วสูงสุด", self.max_speed)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -1130,6 +1134,23 @@ class MainWindow(QMainWindow):
         self._refresh()
 
     def _error(self, message: str) -> None:
+        if "JaiTTS runtime" in message or "JaiTTS dependency" in message:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Critical)
+            box.setWindowTitle("ต้องตั้งค่า AI Runtime")
+            box.setText("DubFlow ยังเปิดระบบสร้างเสียงไม่ได้")
+            box.setInformativeText(
+                f"{message}\n\nไม่ต้องดาวน์โหลดโมเดลหรือย้ายไฟล์เอง\n"
+                "ไปที่ ตั้งค่า → AI Runtime แล้วเลือกโฟลเดอร์ Python .venv ที่มี PyTorch และ f5-tts "
+                "จากนั้นปิดและเปิด DubFlow ใหม่\n\n"
+                "โมเดลจะดาวน์โหลดอัตโนมัติไปที่ Workspace\\models เมื่อสร้างเสียงครั้งแรก"
+            )
+            settings_button = box.addButton("เปิดตั้งค่า", QMessageBox.AcceptRole)
+            box.addButton(QMessageBox.Close)
+            box.exec()
+            if box.clickedButton() is settings_button:
+                self.open_settings()
+            return
         QMessageBox.critical(self, "DubFlow", message)
 
     def closeEvent(self, event) -> None:

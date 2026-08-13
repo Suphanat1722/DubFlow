@@ -1,3 +1,3 @@
-from .manager import RuntimeInfo, RuntimeManager, activate_runtime, runtime_site_packages
+from .manager import RuntimeInfo, RuntimeManager, runtime_python, runtime_site_packages
 
-__all__ = ["RuntimeInfo", "RuntimeManager", "activate_runtime", "runtime_site_packages"]
+__all__ = ["RuntimeInfo", "RuntimeManager", "runtime_python", "runtime_site_packages"]

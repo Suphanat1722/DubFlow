@@ -72,8 +72,9 @@ class JaiTTSProvider(TTSProvider):
                 from f5_tts.model import CFM
                 from f5_tts.model.backbones.dit import DiT
                 from f5_tts.model.utils import get_tokenizer
-        except ImportError as exc:
-            raise TtsError("JaiTTS runtime ยังไม่พร้อม กรุณาติดตั้ง dependency กลุ่ม jaitts ก่อน") from exc
+        except (ImportError, OSError) as exc:
+            missing = getattr(exc, "name", None) or str(exc)
+            raise TtsError(f"JaiTTS runtime ยังไม่พร้อม (โหลด {missing} ไม่สำเร็จ)") from exc
 
         model_dir.mkdir(parents=True, exist_ok=True)
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -126,8 +127,9 @@ class JaiTTSProvider(TTSProvider):
             with _f5_inference_imports():
                 from f5_tts.infer.utils_infer import infer_process, preprocess_ref_audio_text
                 from f5_tts.model.utils import seed_everything
-        except ImportError as exc:
-            raise TtsError("JaiTTS runtime ไม่ครบ") from exc
+        except (ImportError, OSError) as exc:
+            missing = getattr(exc, "name", None) or str(exc)
+            raise TtsError(f"JaiTTS runtime ไม่ครบ (โหลด {missing} ไม่สำเร็จ)") from exc
         # TorchAudio 2.9 routes file loading through torchcodec. Reference files
         # are normalized WAV, so SoundFile is a smaller and more reliable path.
         def load_reference(uri, frame_offset=0, num_frames=-1, normalize=True, channels_first=True, format=None, buffer_size=0, backend=None):
