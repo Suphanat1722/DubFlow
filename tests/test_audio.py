@@ -30,6 +30,15 @@ class AudioPipelineTests(unittest.TestCase):
             self.assertGreater(duration, 700)
             self.assertLess(duration, 1000)
 
+    def test_wav_duration_does_not_require_ffprobe(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            source = Path(directory) / "source.wav"
+            with wave.open(str(source), "wb") as audio:
+                audio.setparams((1, 2, 24000, 0, "NONE", "not compressed"))
+                audio.writeframes(b"\0\0" * 12000)
+            pipeline = AudioPipeline(ffprobe="definitely-not-installed")
+            self.assertEqual(pipeline.duration_ms(source), 500)
+
 
 if __name__ == "__main__":
     unittest.main()

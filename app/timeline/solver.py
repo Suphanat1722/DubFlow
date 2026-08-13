@@ -19,7 +19,9 @@ def solve_timeline(cues: list[Cue], settings: TimelineSettings = TimelineSetting
     bounded by a locked cue, a large gap, or the video end.
     """
     for cue in cues:
-        cue.warnings = []
+        # Preserve generation diagnostics; only timeline-derived warnings are
+        # recalculated by this solver.
+        cue.warnings = [warning for warning in cue.warnings if warning.startswith("สร้างเสียงไม่สำเร็จ:")]
         if not cue.lock_timing:
             cue.resolved_start = cue.original_start
             cue.resolved_end = cue.original_end

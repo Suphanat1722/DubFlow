@@ -5,6 +5,12 @@ from app.timeline import TimelineSettings, solve_timeline
 
 
 class TimelineTests(unittest.TestCase):
+    def test_generation_error_warning_survives_solver(self):
+        cue = Cue("cue-1", 1, 0, 1000, "hello", status=CueStatus.ERROR.value, warnings=["สร้างเสียงไม่สำเร็จ: bad wav"])
+        solve_timeline([cue])
+        self.assertEqual(cue.status, CueStatus.ERROR.value)
+        self.assertEqual(cue.warnings, ["สร้างเสียงไม่สำเร็จ: bad wav"])
+
     def test_speed_fit_preserves_originals(self):
         cue = Cue("cue-0001", 1, 1000, 3000, "hello", generated_duration=2400)
         solve_timeline([cue], TimelineSettings(max_speed=1.25, video_duration_ms=5000))

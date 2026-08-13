@@ -57,6 +57,11 @@ class Cue:
     def selected_take(self) -> Take | None:
         return next((take for take in self.takes if take.id == self.selected_take_id), None)
 
+    @property
+    def needs_generation(self) -> bool:
+        """A batch resume only processes cues that do not already have a usable take."""
+        return self.selected_take is None
+
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "Cue":
         value = dict(value)

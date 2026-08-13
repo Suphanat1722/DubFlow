@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import wave
 from enum import Enum
 from pathlib import Path
 
@@ -34,9 +35,19 @@ class AudioPipeline:
             raise FfmpegError(message)
 
     def duration_ms(self, path: str | Path) -> int:
+        media_path = Path(path)
+        if media_path.suffix.lower() == ".wav":
+            try:
+                with wave.open(str(media_path), "rb") as audio:
+                    frame_rate = audio.getframerate()
+                    if frame_rate <= 0:
+                        raise FfmpegError("ไฟล์ WAV ไม่มี sample rate ที่ถูกต้อง")
+                    return round(audio.getnframes() / frame_rate * 1000)
+            except (OSError, EOFError, wave.Error) as exc:
+                raise FfmpegError(f"อ่านความยาว WAV ไม่ได้: {exc}") from exc
         try:
             result = subprocess.run(
-                [self.ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
+                [self.ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "json", str(media_path)],
                 capture_output=True,
                 text=True,
                 check=False,

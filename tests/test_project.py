@@ -33,6 +33,11 @@ class ProjectTests(unittest.TestCase):
             loaded, _ = repository.load(project_dir / "project.json")
             self.assertEqual(len(loaded.cues[0].takes), 2)
             self.assertEqual(loaded.cues[0].selected_take_id, "take-02")
+            self.assertFalse(loaded.cues[0].needs_generation)
+
+    def test_cue_without_selected_take_needs_generation(self):
+        cue = Cue("cue-0001", 1, 0, 1000, "hello")
+        self.assertTrue(cue.needs_generation)
 
 
 if __name__ == "__main__":

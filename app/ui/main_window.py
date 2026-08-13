@@ -781,6 +781,9 @@ class MainWindow(QMainWindow):
         reference = self.project.reference
         reference_path, reference_text = self.provider.prepare_reference(self.project_dir / reference.processed_path, reference.transcript)
         completed = 0
+        attempted = 0
+        failures: list[dict[str, object]] = []
+        consecutive_failures = 0
         total = len(cues)
         for cue in cues:
             if should_cancel and should_cancel():
@@ -797,19 +800,41 @@ class MainWindow(QMainWindow):
                 duration_ms = self.audio_pipeline.duration_ms(processed)
                 self.repository.add_take(self.project, self.project_dir, cue.id, processed, duration_ms, self.provider.id, self.provider.version, result.seed)
                 cue.status = CueStatus.READY.value
+                cue.warnings = [warning for warning in cue.warnings if not warning.startswith("สร้างเสียงไม่สำเร็จ:")]
                 self.repository.save(self.project, self.project_dir)
                 completed += 1
+                attempted += 1
+                consecutive_failures = 0
                 if progress:
-                    progress(completed, total, cue.id)
-            except Exception:
+                    progress(attempted, total, cue.id)
+            except Exception as exc:
                 cue.status = CueStatus.ERROR.value
+                message = str(exc) or exc.__class__.__name__
+                cue.warnings = [warning for warning in cue.warnings if not warning.startswith("สร้างเสียงไม่สำเร็จ:")]
+                cue.warnings.append(f"สร้างเสียงไม่สำเร็จ: {message}")
+                failures.append({"index": cue.index, "message": message})
+                attempted += 1
+                consecutive_failures += 1
                 self.repository.save(self.project, self.project_dir)
-                raise
+                if progress:
+                    progress(attempted, total, cue.id)
+                # A broken sentence/file should not stop the batch. Repeated
+                # failures usually mean the shared runtime/model is broken, so
+                # stop before hundreds of identical retries.
+                if consecutive_failures >= 3:
+                    break
             finally:
                 temporary.unlink(missing_ok=True)
                 processed.unlink(missing_ok=True)
         self.repository.save(self.project, self.project_dir)
-        return {"completed": completed, "total": total, "cancelled": completed < total}
+        return {
+            "completed": completed,
+            "failed": failures,
+            "total": total,
+            "cancelled": bool(should_cancel and should_cancel()),
+            "stopped_after_failures": consecutive_failures >= 3,
+            "processed": attempted,
+        }
 
     def generate_selected(self) -> None:
         cue = self._selected_cue()
@@ -822,17 +847,28 @@ class MainWindow(QMainWindow):
     def generate_all(self) -> None:
         if not self._validate_generation():
             return
-        cues = [cue for cue in self.project.cues if not cue.lock_take]
+        cues = [cue for cue in self.project.cues if not cue.lock_take and cue.needs_generation]
         if not cues:
-            self._error("ไม่มี Subtitle ที่สร้างได้")
+            QMessageBox.information(self, "DubFlow", "ทุก Subtitle มี Take แล้ว ไม่มีรายการที่ต้องสร้างต่อ")
             return
         self._run_generation(cues)
 
     def _after_generation(self, result=None) -> None:
         self.auto_fit()
         self._refresh()
-        if result and result.get("cancelled"):
-            self._last_completion_message = f"หยุดแล้วหลังสร้างสำเร็จ {result['completed']} จาก {result['total']} รายการ"
+        if not result:
+            return
+        failed = result.get("failed", [])
+        if result.get("cancelled"):
+            self._last_completion_message = f"หยุดแล้ว · สำเร็จ {result['completed']} · ผิดพลาด {len(failed)} · กดสร้างทั้งหมดเพื่อทำต่อ"
+        elif result.get("stopped_after_failures"):
+            self._last_completion_message = f"หยุดหลังผิดพลาดติดกัน 3 รายการ · สำเร็จ {result['completed']} · กดสร้างทั้งหมดเพื่อลองเฉพาะรายการที่ยังไม่สำเร็จ"
+        elif failed:
+            indexes = ", ".join(str(item["index"]) for item in failed[:8])
+            suffix = "…" if len(failed) > 8 else ""
+            self._last_completion_message = f"ทำต่อจนจบ · สำเร็จ {result['completed']} · ผิดพลาด {len(failed)} (รายการ {indexes}{suffix}) · กดสร้างทั้งหมดเพื่อลองรายการที่เสียอีกครั้ง"
+        else:
+            self._last_completion_message = f"สร้างเสียงสำเร็จ {result['completed']} รายการ"
 
     def auto_fit(self) -> None:
         if not self._require_project():
@@ -960,6 +996,7 @@ class MainWindow(QMainWindow):
         else:
             summary = "นำเข้าวิดีโอและ SRT เพื่อเริ่มสร้างเสียงพากย์"
         self.project_summary.setText(summary)
+        self.generate_all_button.setText("สร้างเสียงที่เหลือ" if generated_count else "สร้างเสียงทั้งหมด")
 
         self.preview_stack.setCurrentIndex(1 if has_video else 0)
         self.video_name_label.setText(Path(self.project.video_path).name if has_video else "ยังไม่ได้เลือกวิดีโอ")
@@ -1099,7 +1136,7 @@ class MainWindow(QMainWindow):
                 eta_text = f"เหลือประมาณ {remaining_seconds / 60:.0f} นาที"
             else:
                 eta_text = f"เหลือประมาณ {remaining_seconds:.0f} วินาที"
-        message = f"สร้างแล้ว {completed} จาก {total} · {cue_id} · {eta_text}"
+        message = f"ดำเนินการแล้ว {completed} จาก {total} · {cue_id} · {eta_text}"
         self.task_label.setText(message)
         self.statusBar().showMessage(message)
 
