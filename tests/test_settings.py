@@ -22,6 +22,16 @@ class SettingsTests(unittest.TestCase):
             settings = SettingsStore(config).load()
             self.assertEqual(Path(settings.workspace_root), root / "custom")
 
+    def test_round_trips_custom_asr_model_path(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            root = Path(directory)
+            store = SettingsStore(root / "config" / "app-settings.json")
+            settings = store.load()
+            settings.asr_model_root = str(root / "models" / "whisper")
+            store.save(settings)
+
+            self.assertEqual(store.load().asr_model_root, settings.asr_model_root)
+
 
 if __name__ == "__main__":
     unittest.main()

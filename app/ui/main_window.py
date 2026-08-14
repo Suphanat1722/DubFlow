@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.audio import AudioPipeline, ExportMode, assess_take_quality
+from app.audio import AudioPipeline, ExportMode, TranscriptAssessment, TranscriptVerifier, assess_take_quality, has_active_tail
 from app.models import Cue, CueStatus, Project, ReferenceVoice
 from app.project import ProjectRepository
 from app.runtime import RuntimeManager
@@ -62,6 +62,16 @@ def _clock(milliseconds: int | None) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{millis:03d}"
 
 
+def _transcript_warning(assessment: TranscriptAssessment) -> str:
+    heard = assessment.transcript.replace("\n", " ").strip()
+    if len(heard) > 90:
+        heard = heard[:87] + "…"
+    return (
+        f"ASR ตรวจพบว่าอาจพูดไม่ครบ (เนื้อหา {assessment.coverage:.0%} · คำท้าย {assessment.suffix_similarity:.0%})"
+        + (f" · ได้ยิน: {heard}" if heard else "")
+    )
+
+
 class SettingsDialog(QDialog):
     def __init__(self, settings: AppSettings, parent=None):
         super().__init__(parent)
@@ -79,6 +89,13 @@ class SettingsDialog(QDialog):
         runtime_row = QHBoxLayout()
         runtime_row.addWidget(self.runtime)
         runtime_row.addWidget(runtime_browse)
+        self.asr_model = QLineEdit(settings.asr_model_root)
+        self.asr_model.setPlaceholderText(r"ค่าเริ่มต้น: Workspace\models\asr\whisper-base")
+        asr_browse = QPushButton("เลือก…")
+        asr_browse.clicked.connect(self._browse_asr_model)
+        asr_row = QHBoxLayout()
+        asr_row.addWidget(self.asr_model)
+        asr_row.addWidget(asr_browse)
         self.max_speed = QDoubleSpinBox()
         self.max_speed.setRange(1.0, 2.0)
         self.max_speed.setSingleStep(0.05)
@@ -90,6 +107,11 @@ class SettingsDialog(QDialog):
         runtime_help.setObjectName("helper")
         runtime_help.setWordWrap(True)
         form.addRow("", runtime_help)
+        form.addRow("โมเดลตรวจคำพูด", asr_row)
+        asr_help = QLabel("เลือกโฟลเดอร์ Whisper ที่มี model.safetensors · หากเว้นว่างจะค้นหาที่ Workspace\\models\\asr\\whisper-base")
+        asr_help.setObjectName("helper")
+        asr_help.setWordWrap(True)
+        form.addRow("", asr_help)
         form.addRow("ความเร็วสูงสุด", self.max_speed)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -105,6 +127,11 @@ class SettingsDialog(QDialog):
         path = QFileDialog.getExistingDirectory(self, "เลือก Python Runtime (.venv)", self.runtime.text())
         if path:
             self.runtime.setText(path)
+
+    def _browse_asr_model(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "เลือกโมเดล Whisper", self.asr_model.text() or self.workspace.text())
+        if path:
+            self.asr_model.setText(path)
 
 
 class ExportDialog(QDialog):
@@ -145,6 +172,7 @@ class MainWindow(QMainWindow):
         self.audio_pipeline = AudioPipeline(self.settings.ffmpeg_path, self.settings.ffprobe_path)
         self.provider = JaiTTSProvider()
         self.provider_loaded = False
+        self.transcript_verifier = TranscriptVerifier()
         self.project: Project | None = None
         self.project_dir: Path | None = None
         self.video_duration = 0
@@ -778,6 +806,12 @@ class MainWindow(QMainWindow):
         if not self.provider_loaded:
             self.provider.load(Path(self.settings.workspace_root) / "models", Path(self.settings.workspace_root) / "cache" / "models")
             self.provider_loaded = True
+        asr_model_dir = (
+            Path(self.settings.asr_model_root)
+            if self.settings.asr_model_root
+            else Path(self.settings.workspace_root) / "models" / "asr" / "whisper-base"
+        )
+        transcript_verification_enabled = self.transcript_verifier.load(asr_model_dir)
         reference = self.project.reference
         reference_path, reference_text = self.provider.prepare_reference(self.project_dir / reference.processed_path, reference.transcript)
         completed = 0
@@ -794,7 +828,8 @@ class MainWindow(QMainWindow):
             artifacts: list[Path] = []
             try:
                 candidates: list[dict[str, object]] = []
-                for quality_attempt in range(2):
+                max_quality_attempts = 3 if transcript_verification_enabled else 2
+                for quality_attempt in range(max_quality_attempts):
                     temporary = self.project_dir / "cache" / f"generation-{cue.id}-{uuid.uuid4().hex}.wav"
                     processed = self.project_dir / "cache" / f"processed-{cue.id}-{uuid.uuid4().hex}.wav"
                     artifacts.extend((temporary, processed))
@@ -809,21 +844,41 @@ class MainWindow(QMainWindow):
                     try:
                         result = self.provider.generate(request)
                         raw_duration_ms = self.audio_pipeline.duration_ms(result.path)
-                        self.audio_pipeline.trim_and_fit(result.path, processed)
+                        active_tail = has_active_tail(result.path)
+                        assessment = None
+                        if transcript_verification_enabled:
+                            try:
+                                assessment = self.transcript_verifier.verify(cue.text, result.path)
+                            except Exception:
+                                # Transcript verification is an optional quality
+                                # layer and must never discard a valid TTS Take.
+                                transcript_verification_enabled = False
+                        self.audio_pipeline.trim_and_fit(result.path, processed, release_tail=active_tail)
                         duration_ms = self.audio_pipeline.duration_ms(processed)
                         quality_warnings = assess_take_quality(cue.text, cue.slot_duration, raw_duration_ms, duration_ms)
+                        if assessment is not None and not assessment.complete:
+                            quality_warnings.append(_transcript_warning(assessment))
                         if any(warning.startswith("การตัด silence") for warning in quality_warnings):
                             # Prefer a little extra silence over losing a soft
                             # word ending. Reprocess the immutable raw output.
-                            self.audio_pipeline.trim_and_fit(result.path, processed, trim_silence=False)
+                            self.audio_pipeline.trim_and_fit(
+                                result.path,
+                                processed,
+                                trim_silence=False,
+                                release_tail=active_tail,
+                            )
                             duration_ms = self.audio_pipeline.duration_ms(processed)
                             quality_warnings = assess_take_quality(cue.text, cue.slot_duration, raw_duration_ms, duration_ms)
+                            if assessment is not None and not assessment.complete:
+                                quality_warnings.append(_transcript_warning(assessment))
                         candidates.append({
                             "raw": result.path,
                             "processed": processed,
                             "duration": duration_ms,
                             "seed": result.seed,
                             "warnings": quality_warnings,
+                            "asr_complete": assessment.complete if assessment is not None else True,
+                            "asr_coverage": assessment.coverage if assessment is not None else 0.0,
                         })
                         if not quality_warnings:
                             break
@@ -832,7 +887,15 @@ class MainWindow(QMainWindow):
                             raise
                         break
 
-                best = min(candidates, key=lambda item: (len(item["warnings"]), -int(item["duration"])))
+                best = min(
+                    candidates,
+                    key=lambda item: (
+                        not bool(item["asr_complete"]),
+                        len(item["warnings"]),
+                        -float(item["asr_coverage"]),
+                        -int(item["duration"]),
+                    ),
+                )
                 self.repository.add_take(
                     self.project,
                     self.project_dir,
@@ -846,7 +909,7 @@ class MainWindow(QMainWindow):
                 )
                 cue.warnings = [
                     warning for warning in cue.warnings
-                    if not warning.startswith(("สร้างเสียงไม่สำเร็จ:", "เสียงสั้นผิดปกติ", "การตัด silence"))
+                    if not warning.startswith(("สร้างเสียงไม่สำเร็จ:", "เสียงสั้นผิดปกติ", "การตัด silence", "ASR ตรวจพบ"))
                 ]
                 cue.warnings.extend(best["warnings"])
                 cue.status = CueStatus.NEEDS_REVIEW.value if best["warnings"] else CueStatus.READY.value
@@ -981,6 +1044,8 @@ class MainWindow(QMainWindow):
             self.settings.workspace_root = str(Path(dialog.workspace.text()).resolve())
             runtime_root = dialog.runtime.text().strip()
             self.settings.runtime_root = str(Path(runtime_root).resolve()) if runtime_root else ""
+            asr_model_root = dialog.asr_model.text().strip()
+            self.settings.asr_model_root = str(Path(asr_model_root).resolve()) if asr_model_root else ""
             self.settings.max_speed = dialog.max_speed.value()
             self.settings_store.save(self.settings)
             self.repository = ProjectRepository(self.settings.workspace_root)
@@ -1250,4 +1315,5 @@ class MainWindow(QMainWindow):
         if self.project is not None and self.project_dir is not None:
             self.repository.save(self.project, self.project_dir)
         self.provider.unload()
+        self.transcript_verifier.unload()
         super().closeEvent(event)

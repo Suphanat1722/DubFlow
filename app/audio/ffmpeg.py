@@ -74,7 +74,14 @@ class AudioPipeline:
         self._run(args)
         return output_path
 
-    def trim_and_fit(self, source: str | Path, output: str | Path, speed: float = 1.0, trim_silence: bool = True) -> Path:
+    def trim_and_fit(
+        self,
+        source: str | Path,
+        output: str | Path,
+        speed: float = 1.0,
+        trim_silence: bool = True,
+        release_tail: bool = False,
+    ) -> Path:
         # Remove only leading/trailing silence. Negative stop_periods removes
         # every quiet section and can damage pauses or soft word endings.
         filters = []
@@ -83,6 +90,11 @@ class AudioPipeline:
         if abs(speed - 1.0) > 0.001:
             filters.append(f"atempo={speed:.6f}")
         filters += ["afade=t=in:st=0:d=0.015", "loudnorm=I=-16:TP=-1.5:LRA=11"]
+        if release_tail:
+            # F5-TTS can finish the final phoneme on the last generated frame.
+            # A short reverse fade plus padding preserves the word while
+            # avoiding an audible hard edge; it does not modify the raw Take.
+            filters += ["areverse", "afade=t=in:st=0:d=0.04", "areverse", "apad=pad_dur=0.14"]
         self._run([self.ffmpeg, "-y", "-i", str(source), "-af", ",".join(filters), "-ar", "48000", str(output)])
         return Path(output)
 

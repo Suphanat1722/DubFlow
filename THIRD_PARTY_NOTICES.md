@@ -8,6 +8,7 @@ those terms.
 | --- | --- | --- |
 | JaiTTS-F5TTS model weights | Thai speech generation | CC BY-NC 4.0; non-commercial restriction applies |
 | F5-TTS | Speech synthesis runtime | See the license shipped by the upstream project |
+| OpenAI Whisper Base model | Optional local transcript verification | Apache 2.0 |
 | PyTorch and torchaudio | Machine-learning runtime | BSD-style upstream licenses |
 | PySide6 / Qt | Desktop interface | LGPL/GPL/commercial terms from Qt |
 | FFmpeg / FFprobe | Audio and video processing | Depends on the FFmpeg build used by the user |

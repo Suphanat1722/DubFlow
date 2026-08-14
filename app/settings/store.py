@@ -9,6 +9,7 @@ from pathlib import Path
 class AppSettings:
     workspace_root: str
     runtime_root: str = ""
+    asr_model_root: str = ""
     ffmpeg_path: str = "ffmpeg"
     ffprobe_path: str = "ffprobe"
     max_speed: float = 1.25

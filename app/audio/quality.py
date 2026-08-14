@@ -1,6 +1,25 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+
+def has_active_tail(path: str | Path, window_ms: int = 100, threshold_db: float = -38.0) -> bool:
+    """Return True when speech-level energy reaches the physical end of a WAV."""
+    try:
+        import numpy as np
+        import soundfile as sf
+
+        audio, sample_rate = sf.read(str(path), dtype="float32", always_2d=True)
+        if sample_rate <= 0 or not len(audio):
+            return False
+        mono = audio.mean(axis=1)
+        samples = min(len(mono), max(1, round(sample_rate * window_ms / 1000)))
+        rms = float(np.sqrt(np.mean(np.square(mono[-samples:]))))
+        level_db = 20 * np.log10(max(rms, 1e-12))
+        return bool(level_db > threshold_db)
+    except (ImportError, OSError, RuntimeError, ValueError):
+        return False
 
 
 def assess_take_quality(text: str, slot_duration_ms: int, raw_duration_ms: int, processed_duration_ms: int) -> list[str]:

@@ -2,7 +2,7 @@
 
 Desktop GUI สำหรับสร้างเสียงพากย์ภาษาไทยจาก SRT ด้วย JaiTTS-F5TTS แล้วจัดเสียงให้เข้ากับ timeline ของวิดีโอ โดยเก็บ SRT ต้นฉบับและ raw Take ทุกชุดไว้เสมอ
 
-> **สถานะ:** เวอร์ชัน `0.1.4` สำหรับ Windows อยู่ในช่วง MVP
+> **สถานะ:** เวอร์ชัน `0.1.5` สำหรับ Windows อยู่ในช่วง MVP
 
 ## สิ่งที่ทำได้
 
@@ -12,7 +12,8 @@ Desktop GUI สำหรับสร้างเสียงพากย์ภ�
 - Generate ทีละ subtitle หรือทั้งรายการผ่าน TTS provider interface
 - Resume งานทั้งชุดโดยสร้างเฉพาะรายการที่ยังไม่มี Take และข้ามรายการผิดพลาดเพื่อทำรายการถัดไป
 - เก็บหลาย Take ต่อ subtitle โดยไม่ overwrite Take เดิม
-- เก็บทั้ง Raw Take และไฟล์หลังประมวลผล พร้อมเตือน/ลองใหม่เมื่อเสียงสั้นผิดปกติหรืออาจถูกตัด
+- เก็บทั้ง Raw Take และไฟล์หลังประมวลผล พร้อมใช้ Whisper ตรวจ coverage/คำท้ายและลอง seed ใหม่เมื่ออาจพูดไม่ครบ
+- ตรวจ hard edge ที่ปลายเสียงและเติม release-tail โดยไม่แก้ไข Raw Take
 - Trim silence, time stretch แบบไม่เปลี่ยน pitch, normalize และ fade ด้วย FFmpeg
 - Auto-fit และ bounded ripple โดยหยุดที่ lock, large gap หรือ video end
 - Preview วิดีโอพร้อม subtitle, เล่น Take และดู timeline แบบย่อ
@@ -43,9 +44,13 @@ JaiTTS เป็น dependency ขนาดใหญ่และต้องเ�
 
 โปรแกรมโหลด revision ที่ล็อกไว้ของ `JTS-AI/JaiTTS-F5TTS` ครั้งแรกเมื่อสั่ง Generate และเก็บ checkpoint กับ Vocos ใต้ `models/` ของ Workspace ที่เลือก
 
+### โมเดลตรวจคำพูด
+
+การตรวจว่าพูดครบเป็นระบบเสริมที่ใช้ Whisper แบบ local และไม่ดาวน์โหลดอัตโนมัติ วางไฟล์ `openai/whisper-base` ที่ `models/asr/whisper-base` ใต้ Workspace หรือเลือกโฟลเดอร์ Whisper อื่นใน **ตั้งค่า → โมเดลตรวจคำพูด** โฟลเดอร์ต้องมี `model.safetensors`, tokenizer และ config ของโมเดล หากไม่พบโมเดล โปรแกรมยังสร้างเสียงได้แต่จะใช้เพียงการตรวจความยาวและปลายคลื่น
+
 ## Lightweight Setup
 
-ตัว Setup ไม่รวม PyTorch, CUDA หรือโมเดล เพื่อให้ดาวน์โหลดและอัปเดต GUI ได้โดยไม่ต้องโหลดไฟล์ AI ซ้ำ หลังเปิดโปรแกรมให้เข้า **ตั้งค่า → AI Runtime** แล้วเลือกโฟลเดอร์ Python environment ที่ติดตั้ง `torch`, `torchaudio` และ `f5-tts` ไว้ (เช่น `.venv`) จากนั้นเปิด DubFlow ใหม่ ไม่ต้องดาวน์โหลดหรือวางโมเดลเอง: โปรแกรมจะดาวน์โหลด revision ที่รองรับจาก Hugging Face อัตโนมัติไปยัง `models/` ใต้ Workspace เมื่อสร้างเสียงครั้งแรก
+ตัว Setup ไม่รวม PyTorch, CUDA หรือโมเดล เพื่อให้ดาวน์โหลดและอัปเดต GUI ได้โดยไม่ต้องโหลดไฟล์ AI ซ้ำ หลังเปิดโปรแกรมให้เข้า **ตั้งค่า → AI Runtime** แล้วเลือกโฟลเดอร์ Python environment ที่ติดตั้ง `torch`, `torchaudio` และ `f5-tts` ไว้ (เช่น `.venv`) จากนั้นเปิด DubFlow ใหม่ โมเดลสร้างเสียงจะดาวน์โหลด revision ที่รองรับจาก Hugging Face อัตโนมัติไปยัง `models/` ใต้ Workspace เมื่อสร้างเสียงครั้งแรก ส่วนโมเดล Whisper เป็นตัวเลือกที่ผู้ใช้กำหนดตำแหน่งเอง
 
 ## License และการใช้งานโมเดล
 

@@ -6,7 +6,7 @@ import unittest
 import wave
 from pathlib import Path
 
-from app.audio import AudioPipeline
+from app.audio import AudioPipeline, has_active_tail
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is not available")
@@ -49,6 +49,25 @@ class AudioPipelineTests(unittest.TestCase):
             pipeline = AudioPipeline()
             pipeline.trim_and_fit(source, output, trim_silence=False)
             self.assertGreaterEqual(pipeline.duration_ms(output), 1590)
+
+    def test_active_model_edge_gets_release_tail(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            source = Path(directory) / "source.wav"
+            output = Path(directory) / "output.wav"
+            rate = 24000
+            frames = [round(10000 * math.sin(2 * math.pi * 220 * sample / rate)) for sample in range(rate)]
+            with wave.open(str(source), "wb") as audio:
+                audio.setparams((1, 2, rate, 0, "NONE", "not compressed"))
+                audio.writeframes(b"".join(struct.pack("<h", frame) for frame in frames))
+
+            self.assertTrue(has_active_tail(source))
+            pipeline = AudioPipeline()
+            pipeline.trim_and_fit(source, output, trim_silence=False, release_tail=True)
+
+            self.assertGreaterEqual(pipeline.duration_ms(output), 1130)
+            with wave.open(str(output), "rb") as audio:
+                audio.setpos(audio.getnframes() - audio.getframerate() // 20)
+                self.assertEqual(set(audio.readframes(audio.getframerate() // 20)), {0})
 
 
 if __name__ == "__main__":
