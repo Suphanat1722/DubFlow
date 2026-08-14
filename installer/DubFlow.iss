@@ -31,6 +31,19 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "..\dist\DubFlow\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; Remove development bytecode accidentally included by releases before 0.1.4.
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\audio\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\project\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\runtime\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\settings\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\subtitles\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\timeline\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\tts\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\ui\__pycache__"
+Type: filesandordirs; Name: "{app}\_internal\app_runtime\app\video\__pycache__"
+
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon

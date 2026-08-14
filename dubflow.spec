@@ -4,11 +4,21 @@
 # Lightweight GUI build: AI dependencies are loaded from a user-selected
 # Python Runtime and models remain in the user-selected Workspace.
 
+from pathlib import Path
+
+
+app_sources = [
+    (str(source), str(Path("app_runtime") / source.parent))
+    for source in Path("app").rglob("*.py")
+]
+
 analysis = Analysis(
     ["app/__main__.py"],
     pathex=["."],
     binaries=[],
-    datas=[("app", "app_runtime/app")],
+    # Package source files explicitly so local __pycache__, logs, and other
+    # development artifacts can never leak into release installers.
+    datas=app_sources,
     hiddenimports=[],
     excludes=[
         "accelerate",
