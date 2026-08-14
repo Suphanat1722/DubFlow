@@ -39,6 +39,17 @@ class AudioPipelineTests(unittest.TestCase):
             pipeline = AudioPipeline(ffprobe="definitely-not-installed")
             self.assertEqual(pipeline.duration_ms(source), 500)
 
+    def test_safe_processing_without_silence_trim_preserves_duration(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            source = Path(directory) / "source.wav"
+            output = Path(directory) / "output.wav"
+            with wave.open(str(source), "wb") as audio:
+                audio.setparams((1, 2, 24000, 0, "NONE", "not compressed"))
+                audio.writeframes(b"\0\0" * 2400 + b"\x10\x00" * 24000 + b"\0\0" * 12000)
+            pipeline = AudioPipeline()
+            pipeline.trim_and_fit(source, output, trim_silence=False)
+            self.assertGreaterEqual(pipeline.duration_ms(output), 1590)
+
 
 if __name__ == "__main__":
     unittest.main()

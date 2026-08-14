@@ -24,6 +24,7 @@ class Take:
     provider_version: str
     seed: int
     created_at: str
+    raw_path: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "Take":

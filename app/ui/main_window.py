@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.audio import AudioPipeline, ExportMode
+from app.audio import AudioPipeline, ExportMode, assess_take_quality
 from app.models import Cue, CueStatus, Project, ReferenceVoice
 from app.project import ProjectRepository
 from app.runtime import RuntimeManager
@@ -791,16 +791,58 @@ class MainWindow(QMainWindow):
             cue.status = CueStatus.GENERATING.value
             if progress:
                 progress(completed, total, cue.id)
-            temporary = self.project_dir / "cache" / f"generation-{cue.id}-{uuid.uuid4().hex}.wav"
-            processed = self.project_dir / "cache" / f"processed-{cue.id}-{uuid.uuid4().hex}.wav"
-            request = GenerationRequest(cue.text, reference_path, reference_text, temporary, random.randint(1, 2_147_483_647))
+            artifacts: list[Path] = []
             try:
-                result = self.provider.generate(request)
-                self.audio_pipeline.trim_and_fit(result.path, processed)
-                duration_ms = self.audio_pipeline.duration_ms(processed)
-                self.repository.add_take(self.project, self.project_dir, cue.id, processed, duration_ms, self.provider.id, self.provider.version, result.seed)
-                cue.status = CueStatus.READY.value
-                cue.warnings = [warning for warning in cue.warnings if not warning.startswith("สร้างเสียงไม่สำเร็จ:")]
+                candidates: list[dict[str, object]] = []
+                for quality_attempt in range(2):
+                    temporary = self.project_dir / "cache" / f"generation-{cue.id}-{uuid.uuid4().hex}.wav"
+                    processed = self.project_dir / "cache" / f"processed-{cue.id}-{uuid.uuid4().hex}.wav"
+                    artifacts.extend((temporary, processed))
+                    request = GenerationRequest(cue.text, reference_path, reference_text, temporary, random.randint(1, 2_147_483_647))
+                    try:
+                        result = self.provider.generate(request)
+                        raw_duration_ms = self.audio_pipeline.duration_ms(result.path)
+                        self.audio_pipeline.trim_and_fit(result.path, processed)
+                        duration_ms = self.audio_pipeline.duration_ms(processed)
+                        quality_warnings = assess_take_quality(cue.text, cue.slot_duration, raw_duration_ms, duration_ms)
+                        if any(warning.startswith("การตัด silence") for warning in quality_warnings):
+                            # Prefer a little extra silence over losing a soft
+                            # word ending. Reprocess the immutable raw output.
+                            self.audio_pipeline.trim_and_fit(result.path, processed, trim_silence=False)
+                            duration_ms = self.audio_pipeline.duration_ms(processed)
+                            quality_warnings = assess_take_quality(cue.text, cue.slot_duration, raw_duration_ms, duration_ms)
+                        candidates.append({
+                            "raw": result.path,
+                            "processed": processed,
+                            "duration": duration_ms,
+                            "seed": result.seed,
+                            "warnings": quality_warnings,
+                        })
+                        if not quality_warnings:
+                            break
+                    except Exception:
+                        if not candidates:
+                            raise
+                        break
+
+                best = min(candidates, key=lambda item: (len(item["warnings"]), -int(item["duration"])))
+                self.repository.add_take(
+                    self.project,
+                    self.project_dir,
+                    cue.id,
+                    best["processed"],
+                    int(best["duration"]),
+                    self.provider.id,
+                    self.provider.version,
+                    int(best["seed"]),
+                    best["raw"],
+                )
+                cue.warnings = [
+                    warning for warning in cue.warnings
+                    if not warning.startswith(("สร้างเสียงไม่สำเร็จ:", "เสียงสั้นผิดปกติ", "การตัด silence"))
+                ]
+                cue.warnings.extend(best["warnings"])
+                cue.status = CueStatus.NEEDS_REVIEW.value if best["warnings"] else CueStatus.READY.value
                 self.repository.save(self.project, self.project_dir)
                 completed += 1
                 attempted += 1
@@ -824,8 +866,8 @@ class MainWindow(QMainWindow):
                 if consecutive_failures >= 3:
                     break
             finally:
-                temporary.unlink(missing_ok=True)
-                processed.unlink(missing_ok=True)
+                for artifact in artifacts:
+                    artifact.unlink(missing_ok=True)
         self.repository.save(self.project, self.project_dir)
         return {
             "completed": completed,
@@ -1069,9 +1111,12 @@ class MainWindow(QMainWindow):
     def _table_changed(self, item: QTableWidgetItem) -> None:
         if self._updating_table or not self.project or item.row() >= len(self.project.cues):
             return
+        # Programmatic status/Take updates must not trigger a second project
+        # save from the UI while the generation worker is saving the same file.
+        if item.column() != 2:
+            return
         cue = self.project.cues[item.row()]
-        if item.column() == 2:
-            cue.text = item.text().strip()
+        cue.text = item.text().strip()
         self.repository.save(self.project, self.project_dir)
 
     def _selection_changed(self) -> None:

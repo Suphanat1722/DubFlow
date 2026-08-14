@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,6 +31,7 @@ def _safe_name(name: str) -> str:
 class ProjectRepository:
     def __init__(self, workspace_root: str | Path):
         self.workspace_root = Path(workspace_root).expanduser().resolve()
+        self._save_lock = threading.RLock()
 
     def ensure_workspace(self) -> None:
         for folder in ("models", "cache", "projects"):
@@ -58,12 +60,13 @@ class ProjectRepository:
         return Project.from_dict(data), file_path.parent
 
     def save(self, project: Project, project_dir: str | Path) -> Path:
-        project.updated_at = _now()
-        destination = Path(project_dir) / "project.json"
-        temporary = destination.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(project.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(destination)
-        return destination
+        with self._save_lock:
+            project.updated_at = _now()
+            destination = Path(project_dir) / "project.json"
+            temporary = destination.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(project.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+            temporary.replace(destination)
+            return destination
 
     def add_take(
         self,
@@ -75,6 +78,7 @@ class ProjectRepository:
         provider: str,
         provider_version: str,
         seed: int,
+        raw_generated_file: str | Path | None = None,
     ) -> Take:
         cue = next((item for item in project.cues if item.id == cue_id), None)
         if cue is None:
@@ -87,7 +91,12 @@ class ProjectRepository:
         if destination.exists():
             raise ProjectError(f"ไฟล์ take มีอยู่แล้ว: {destination}")
         shutil.copy2(generated_file, destination)
-        take = Take(take_id, destination.relative_to(project_dir).as_posix(), duration_ms, provider, provider_version, seed, _now())
+        raw_path = ""
+        if raw_generated_file is not None:
+            raw_destination = cue_dir / f"{take_id}.raw.wav"
+            shutil.copy2(raw_generated_file, raw_destination)
+            raw_path = raw_destination.relative_to(project_dir).as_posix()
+        take = Take(take_id, destination.relative_to(project_dir).as_posix(), duration_ms, provider, provider_version, seed, _now(), raw_path)
         cue.takes.append(take)
         if not cue.lock_take or cue.selected_take_id is None:
             cue.selected_take_id = take.id

@@ -74,8 +74,12 @@ class AudioPipeline:
         self._run(args)
         return output_path
 
-    def trim_and_fit(self, source: str | Path, output: str | Path, speed: float = 1.0) -> Path:
-        filters = ["silenceremove=start_periods=1:start_duration=0.05:start_threshold=-45dB:stop_periods=-1:stop_duration=0.08:stop_threshold=-45dB"]
+    def trim_and_fit(self, source: str | Path, output: str | Path, speed: float = 1.0, trim_silence: bool = True) -> Path:
+        # Remove only leading/trailing silence. Negative stop_periods removes
+        # every quiet section and can damage pauses or soft word endings.
+        filters = []
+        if trim_silence:
+            filters.append("silenceremove=start_periods=1:start_duration=0.05:start_threshold=-50dB:stop_periods=1:stop_duration=0.25:stop_threshold=-50dB:stop_silence=0.12")
         if abs(speed - 1.0) > 0.001:
             filters.append(f"atempo={speed:.6f}")
         filters += ["afade=t=in:st=0:d=0.015", "loudnorm=I=-16:TP=-1.5:LRA=11"]

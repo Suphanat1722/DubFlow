@@ -19,9 +19,10 @@ def solve_timeline(cues: list[Cue], settings: TimelineSettings = TimelineSetting
     bounded by a locked cue, a large gap, or the video end.
     """
     for cue in cues:
-        # Preserve generation diagnostics; only timeline-derived warnings are
-        # recalculated by this solver.
-        cue.warnings = [warning for warning in cue.warnings if warning.startswith("สร้างเสียงไม่สำเร็จ:")]
+        # Preserve generation/quality diagnostics; only timeline-derived
+        # warnings are recalculated by this solver.
+        timeline_prefixes = ("Speed ", "Duration overflow ", "Shift ", "Ripple ")
+        cue.warnings = [warning for warning in cue.warnings if not warning.startswith(timeline_prefixes)]
         if not cue.lock_timing:
             cue.resolved_start = cue.original_start
             cue.resolved_end = cue.original_end
@@ -87,9 +88,12 @@ def solve_timeline(cues: list[Cue], settings: TimelineSettings = TimelineSetting
 
         if settings.video_duration_ms is not None and resolved_end > settings.video_duration_ms:
             unresolved = True
+        quality_issue = any(warning.startswith(("เสียงสั้นผิดปกติ", "การตัด silence")) for warning in cue.warnings)
         if unresolved:
             cue.status = CueStatus.NEEDS_REVIEW.value
             cue.warnings.append("Ripple ถูกหยุดที่ขอบเขต")
+        elif quality_issue:
+            cue.status = CueStatus.NEEDS_REVIEW.value
         elif speed > 1.001 or resolved_end > original_end_at_shift or cue.timing_shift:
             cue.status = CueStatus.ADJUSTED.value
         else:

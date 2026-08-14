@@ -1,5 +1,5 @@
 #define AppName "DubFlow"
-#define AppVersion "0.1.2"
+#define AppVersion "0.1.3"
 #define AppPublisher "DubFlow"
 #define AppExeName "DubFlow.exe"
 

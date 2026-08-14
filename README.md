@@ -2,7 +2,7 @@
 
 Desktop GUI สำหรับสร้างเสียงพากย์ภาษาไทยจาก SRT ด้วย JaiTTS-F5TTS แล้วจัดเสียงให้เข้ากับ timeline ของวิดีโอ โดยเก็บ SRT ต้นฉบับและ raw Take ทุกชุดไว้เสมอ
 
-> **สถานะ:** เวอร์ชัน `0.1.2` สำหรับ Windows อยู่ในช่วง MVP
+> **สถานะ:** เวอร์ชัน `0.1.3` สำหรับ Windows อยู่ในช่วง MVP
 
 ## สิ่งที่ทำได้
 
@@ -12,6 +12,7 @@ Desktop GUI สำหรับสร้างเสียงพากย์ภ�
 - Generate ทีละ subtitle หรือทั้งรายการผ่าน TTS provider interface
 - Resume งานทั้งชุดโดยสร้างเฉพาะรายการที่ยังไม่มี Take และข้ามรายการผิดพลาดเพื่อทำรายการถัดไป
 - เก็บหลาย Take ต่อ subtitle โดยไม่ overwrite Take เดิม
+- เก็บทั้ง Raw Take และไฟล์หลังประมวลผล พร้อมเตือน/ลองใหม่เมื่อเสียงสั้นผิดปกติหรืออาจถูกตัด
 - Trim silence, time stretch แบบไม่เปลี่ยน pitch, normalize และ fade ด้วย FFmpeg
 - Auto-fit และ bounded ripple โดยหยุดที่ lock, large gap หรือ video end
 - Preview วิดีโอพร้อม subtitle, เล่น Take และดู timeline แบบย่อ
