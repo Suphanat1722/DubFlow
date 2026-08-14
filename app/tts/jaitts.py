@@ -9,6 +9,48 @@ from typing import Any
 from .base import GenerationRequest, GenerationResult, TTSProvider, TtsError
 
 
+def _fixed_total_duration(
+    reference_duration_seconds: float,
+    reference_text: str,
+    generated_text: str,
+    target_duration_ms: int | None,
+) -> float | None:
+    """Compensate for F5-TTS' UTF-8 byte based duration estimate.
+
+    Thai characters use three UTF-8 bytes while Latin characters use one. A
+    Thai reference plus mixed Thai/English output can therefore receive too
+    few mel frames and be cut off deterministically, regardless of the seed.
+    """
+    if not target_duration_ms or reference_duration_seconds <= 0:
+        return None
+    has_thai = any("\u0e00" <= char <= "\u0e7f" for char in generated_text)
+    has_latin = any(char.isascii() and char.isalpha() for char in generated_text)
+    if not (has_thai and has_latin):
+        return None
+
+    reference_bytes = len(reference_text.encode("utf-8"))
+    generated_bytes = len(generated_text.encode("utf-8"))
+    if not reference_bytes or not generated_bytes:
+        return None
+    automatic_seconds = reference_duration_seconds * generated_bytes / reference_bytes
+
+    reference_characters = sum(not char.isspace() for char in reference_text)
+    generated_characters = sum(not char.isspace() for char in generated_text)
+    character_seconds = (
+        reference_duration_seconds * generated_characters / reference_characters
+        if reference_characters and generated_characters
+        else 0.0
+    )
+    required_seconds = max(target_duration_ms / 1000, character_seconds)
+    if automatic_seconds >= required_seconds * 0.8:
+        return None
+
+    # Extra generation headroom prevents the final phoneme from landing on the
+    # model boundary. The audio pipeline subsequently fits it to the SRT slot.
+    generated_seconds = required_seconds * 1.08 + 0.12
+    return reference_duration_seconds + generated_seconds
+
+
 @contextmanager
 def _f5_inference_imports():
     """Avoid loading Transformers' optional ASR pipeline in packaged builds.
@@ -145,7 +187,14 @@ class JaiTTSProvider(TTSProvider):
             torchaudio.load = load_reference
             seed_everything(request.seed)
             reference, reference_text = preprocess_ref_audio_text(str(request.reference_audio), request.reference_text, show_info=lambda *_: None)
-            wav, sample_rate, _ = infer_process(reference, reference_text, request.text, self._model, self._vocoder, mel_spec_type="vocos", show_info=lambda *_: None, progress=None, target_rms=0.1, cross_fade_duration=0.15, nfe_step=32, cfg_strength=2.0, sway_sampling_coef=-1.0, speed=1.0, fix_duration=None, device=self._device)
+            reference_duration_seconds = sf.info(reference).duration
+            fixed_duration = _fixed_total_duration(
+                reference_duration_seconds,
+                reference_text,
+                request.text,
+                request.target_duration_ms,
+            )
+            wav, sample_rate, _ = infer_process(reference, reference_text, request.text, self._model, self._vocoder, mel_spec_type="vocos", show_info=lambda *_: None, progress=None, target_rms=0.1, cross_fade_duration=0.15, nfe_step=32, cfg_strength=2.0, sway_sampling_coef=-1.0, speed=1.0, fix_duration=fixed_duration, device=self._device)
         finally:
             torchaudio.load = original_torchaudio_load
         if wav is None:

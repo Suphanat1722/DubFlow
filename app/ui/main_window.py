@@ -798,7 +798,14 @@ class MainWindow(QMainWindow):
                     temporary = self.project_dir / "cache" / f"generation-{cue.id}-{uuid.uuid4().hex}.wav"
                     processed = self.project_dir / "cache" / f"processed-{cue.id}-{uuid.uuid4().hex}.wav"
                     artifacts.extend((temporary, processed))
-                    request = GenerationRequest(cue.text, reference_path, reference_text, temporary, random.randint(1, 2_147_483_647))
+                    request = GenerationRequest(
+                        cue.text,
+                        reference_path,
+                        reference_text,
+                        temporary,
+                        random.randint(1, 2_147_483_647),
+                        target_duration_ms=cue.slot_duration,
+                    )
                     try:
                         result = self.provider.generate(request)
                         raw_duration_ms = self.audio_pipeline.duration_ms(result.path)

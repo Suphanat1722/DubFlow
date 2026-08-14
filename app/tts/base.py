@@ -17,6 +17,7 @@ class GenerationRequest:
     reference_text: str
     output_path: Path
     seed: int = 42
+    target_duration_ms: int | None = None
 
 
 @dataclass(frozen=True)
