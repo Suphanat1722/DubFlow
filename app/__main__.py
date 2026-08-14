@@ -33,6 +33,7 @@ def launch_external_runtime(root: Path) -> bool:
     environment = os.environ.copy()
     environment["DUBFLOW_APPLICATION_ROOT"] = str(root)
     environment["DUBFLOW_RUNTIME_CHILD"] = "1"
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
     subprocess.Popen([str(python), "-m", "app"], cwd=source_root, env=environment)
     return True
 
